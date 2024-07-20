@@ -15,8 +15,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 )
 
-const TickRate = 1
+const TickRate = 30
 const GameTick = time.Millisecond * 1000 / TickRate
+
+const PlayerSpeed = 1
 
 var connections = map[string]*entities.User{}
 
@@ -40,6 +42,15 @@ func randomName() string {
 	third := []string{"Chickens", "Ducks", "Geese", "Pigeons", "Eagles", "Falcons", "Hawks", "Owls", "Parrots", "Penguins", "Robins", "Sparrows", "Swans", "Turkeys"}
 
 	return fmt.Sprintf("%s %s %s", first[rand.Intn(len(first))], second[rand.Intn(len(second))], third[rand.Intn(len(third))])
+}
+
+func UpdateState() {
+	for _, game := range entities.Games {
+		for _, player := range game.Players {
+			player.X += float32(player.VX) * PlayerSpeed
+			player.Y += float32(player.VY) * PlayerSpeed
+		}
+	}
 }
 
 func BroadcastState() {
@@ -81,6 +92,7 @@ func main() {
 	go func() {
 		// broadcast game state every GameTick
 		for {
+			UpdateState()
 			BroadcastState()
 			time.Sleep(GameTick)
 		}
@@ -134,7 +146,19 @@ func main() {
 				game.RemovePlayer(id)
 				SendMessage("left", map[string]any{}, c)
 			case "action":
-				fmt.Println("Action", message.Data["action"])
+				if game == nil {
+					SendMessage("error", map[string]any{"message": "You are not in a game"}, c)
+					continue
+				}
+
+				switch message.Data["action"] {
+				case "start":
+					game.Start(id)
+				case "move":
+					direction := message.Data["direction"].(string)
+					start := message.Data["start"].(bool)
+					game.MovePlayer(id, direction, start)
+				}
 			case "chat":
 				// TODO: Add support for commands
 				to := []*websocket.Conn{}

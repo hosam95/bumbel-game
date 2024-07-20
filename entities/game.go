@@ -24,7 +24,7 @@ func NewGame(host *User) string {
 		Players: Players{
 			player,
 		},
-		State: GameState{},
+		State: *NewGameState(40, 30),
 		Host:  player,
 		Room:  room,
 	}
@@ -78,6 +78,35 @@ func (g *Game) RemovePlayer(userId string) {
 		g.Finish()
 	} else if g.Host.User.ID == userId {
 		g.Host = g.Players[0]
+	}
+}
+
+func (g *Game) Start(userId string) {
+	if g.State.Phase != WaitingForPlayers {
+		return
+	}
+
+	if g.Host.User.ID != userId {
+		return
+	}
+
+	if len(g.Players) < 2 {
+		return
+	}
+
+	g.State.Phase = Playing
+	for _, player := range g.Players {
+		player.X = rand.Float32() * float32(g.State.GameMap.Width)
+		player.Y = rand.Float32() * float32(g.State.GameMap.Height)
+	}
+}
+
+func (g *Game) MovePlayer(userId string, direction string, start bool) {
+	for _, player := range g.Players {
+		if player.User.ID == userId {
+			player.Move(direction, start)
+			break
+		}
 	}
 }
 

@@ -132,23 +132,62 @@ function draw(ts) {
     if (!game.ctx) { console.log("no game ctx"); rendering = false; return; }
     const dt = (ts - lastTimestamp) / 1000;
     lastTimestamp = ts;
-
+    const { width, height } = game.ctx.canvas;
+    
     const gameState = game.state;
     const ctx = game.ctx;
 
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = "#FFD35A";
+    ctx.fillRect(0, 0, width, height);
 
-    for (let i = 0; i < gameState.players.length; i++) {
-        ctx.fillStyle = gameState.players[i].user.id === myData.id ? 'blue' : 'red';
-        const x = i * 20 + 5 * (i + 1);
-        ctx.fillRect(x, 10, 20, 20);
+    const { width: mapWidth, height: mapHeight } = gameState.state.map;
+    const cellWidth = width / mapWidth;
+    const cellHeight = height / mapHeight;
+
+    for (let i = 0; i < mapWidth * mapHeight; i++) {
+        const x = i % mapWidth;
+        const y = Math.floor(i / mapWidth);
+
+        switch (gameState.state.map.tiles[i]) {
+            case 0: {
+                // Empty
+            } break;
+            case 1: {
+                ctx.fillStyle = "#" + gameState.state.teamA.toString(16).padStart(6, '0');
+                ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+            } break;
+            case 2: {
+                ctx.fillStyle = "#" + gameState.state.teamB.toString(16).padStart(6, '0');
+                ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+            } break;
+            case 3: {
+                ctx.fillStyle = "#FFA823";
+                ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+            } break;
+        }
+    }
+
+    if (gameState.state.phase === 1) {
+        for (let i = 0; i < gameState.players.length; i++) {
+            const player = gameState.players[i];
+            if (player.id === myData.id) {
+                ctx.strokeStyle = "#ffffff";
+                ctx.strokeRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
+                ctx.fillStyle = "#" + gameState.state[i === 0 ? "teamA" : "teamB"].toString(16).padStart(6, '0');
+                ctx.strokeRect(player.x * cellWidth + 0.1 * cellWidth, player.y * cellHeight + 0.1 * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
+            } else {
+                ctx.fillStyle = "#" + gameState.state[i === 0 ? "teamA" : "teamB"].toString(16).padStart(6, '0');
+                ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
+            }
+        }
     }
 
     requestAnimationFrame(draw);
 }
+
+requestAnimationFrame(draw);
 
 function appendMessage(from, message) {
     const chatBox = document.getElementById('chatBox');
@@ -179,6 +218,70 @@ function appendMessage(from, message) {
         startGame,
         chat
     }, root);
+
+    window.addEventListener("keydown", (e) => {
+        switch (e.key) {
+            case "ArrowUp": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'up', start: true }
+                }));
+            } break;
+            case "ArrowDown": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'down', start: true }
+                }));
+            } break;
+            case "ArrowLeft": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'left', start: true }
+                }));
+            } break;
+            case "ArrowRight": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'right', start: true }
+                }));
+            } break;
+            case " ": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "start" }
+                }));
+            } break;
+        }
+    })
+
+    window.addEventListener("keyup", (e) => {
+        switch (e.key) {
+            case "ArrowUp": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'up', start: false }
+                }));
+            } break;
+            case "ArrowDown": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'down', start: false }
+                }));
+            } break;
+            case "ArrowLeft": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'left', start: false }
+                }));
+            } break;
+            case "ArrowRight": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "move", direction: 'right', start: false }
+                }));
+            } break;
+        }
+    })
 
     function joinRoom(roomInput) {
         const room = roomInput.value;
@@ -251,7 +354,7 @@ function setupWSListeners(ws, handlers, root) {
                 });
             } break;
             case "state": {
-                if (!game.state) {
+                if (!game.state || !rendering) {
                     game.state = msg.data;
                     startGame();
                 } else {
