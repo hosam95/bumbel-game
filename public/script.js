@@ -1,3 +1,5 @@
+const playerSpeed = 10;
+
 const game = { state: undefined, ctx: undefined };
 let activeScreen = 0; // 0: Home, 1: Game
 let lastTimestamp = 0;
@@ -6,6 +8,7 @@ const myData = {
     id: undefined,
     username: undefined,
 }
+let isServerUpdated = false;
 
 function HomeScreen(root, _data, handlers) {
     activeScreen = 0;
@@ -139,6 +142,17 @@ function draw(ts) {
 
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
+    // Update
+    if (!isServerUpdated) {
+        for (const player of gameState.players) {
+            player.x += player.vx * dt * playerSpeed;
+            player.y += player.vy * dt * playerSpeed;
+        }
+    } else {
+        isServerUpdated = false;
+    }
+
+    // Render
     ctx.fillStyle = "#FFD35A";
     ctx.fillRect(0, 0, width, height);
 
@@ -172,11 +186,11 @@ function draw(ts) {
     if (gameState.state.phase === 1) {
         for (let i = 0; i < gameState.players.length; i++) {
             const player = gameState.players[i];
-            if (player.id === myData.id) {
-                ctx.strokeStyle = "#ffffff";
-                ctx.strokeRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
+            if (player.user.id === myData.id) {
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
                 ctx.fillStyle = "#" + gameState.state[i === 0 ? "teamA" : "teamB"].toString(16).padStart(6, '0');
-                ctx.strokeRect(player.x * cellWidth + 0.1 * cellWidth, player.y * cellHeight + 0.1 * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
+                ctx.fillRect(player.x * cellWidth + 0.1 * cellWidth, player.y * cellHeight + 0.1 * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
             } else {
                 ctx.fillStyle = "#" + gameState.state[i === 0 ? "teamA" : "teamB"].toString(16).padStart(6, '0');
                 ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
@@ -360,6 +374,7 @@ function setupWSListeners(ws, handlers, root) {
                 } else {
                     game.state = msg.data;
                 }
+                isServerUpdated = true;
 
                 const playerCount = document.getElementById('playerCount');
                 playerCount.textContent = `Players: ${msg.data.players.length}`;

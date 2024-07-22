@@ -18,7 +18,7 @@ import (
 const TickRate = 30
 const GameTick = time.Millisecond * 1000 / TickRate
 
-const PlayerSpeed = 1
+const PlayerSpeed = 10
 
 var connections = map[string]*entities.User{}
 
@@ -47,8 +47,8 @@ func randomName() string {
 func UpdateState() {
 	for _, game := range entities.Games {
 		for _, player := range game.Players {
-			player.X += float32(player.VX) * PlayerSpeed
-			player.Y += float32(player.VY) * PlayerSpeed
+			player.X += float32(player.VX) * PlayerSpeed * float32(GameTick.Seconds())
+			player.Y += float32(player.VY) * PlayerSpeed * float32(GameTick.Seconds())
 		}
 	}
 }

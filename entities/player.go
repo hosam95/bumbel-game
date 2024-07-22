@@ -14,6 +14,8 @@ func (p *Player) Stringify() map[string]interface{} {
 		"user": p.User,
 		"x":    p.X,
 		"y":    p.Y,
+		"vx":   p.VX,
+		"vy":   p.VY,
 	}
 
 	return playerMap
