@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"online-game/entities"
+	"online-game/structs"
 	"strings"
 	"time"
 
@@ -15,20 +16,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 )
 
-const TickRate = 30
-const GameTick = time.Millisecond * 1000 / TickRate
-
-const PlayerSpeed = 10
-
-var connections = map[string]*entities.User{}
-
-type Message struct {
-	Type string         `json:"type"`
-	Data map[string]any `json:"data"`
-}
-
-func ParseMessage(msg []byte) (*Message, error) {
-	message := &Message{}
+func ParseMessage(msg []byte) (*structs.Message, error) {
+	message := &structs.Message{}
 	err := json.Unmarshal(msg, message)
 	if err != nil {
 		return nil, err
@@ -90,11 +79,9 @@ func main() {
 	}))
 
 	go func() {
-		// broadcast game state every GameTick
-		for {
+		for range time.Tick(entities.GameTick) {
 			UpdateState()
 			BroadcastState()
-			time.Sleep(GameTick)
 		}
 	}()
 

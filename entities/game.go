@@ -2,7 +2,16 @@ package entities
 
 import (
 	"math/rand"
+	"time"
 )
+
+const TickRate = 30
+const GameTick = time.Millisecond * 1000 / TickRate
+
+const PlayerSpeed = 10
+
+const MapWidth = 40
+const MapHeight = 30
 
 type Game struct {
 	Players Players   `json:"players"`
