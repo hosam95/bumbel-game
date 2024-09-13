@@ -10,6 +10,8 @@ const myData = {
 }
 let isServerUpdated = false;
 
+const WallTile = 3;
+
 function HomeScreen(root, _data, handlers) {
     activeScreen = 0;
 
@@ -130,13 +132,14 @@ function GameScreen(root, data, handlers) {
     });
 }
 
-function draw(ts) {
+let one = false;
+function tick(ts) {
     if (!game.state) { console.log("no game state"); rendering = false; return; }
     if (!game.ctx) { console.log("no game ctx"); rendering = false; return; }
     const dt = (ts - lastTimestamp) / 1000;
     lastTimestamp = ts;
     const { width, height } = game.ctx.canvas;
-    
+
     const gameState = game.state;
     const ctx = game.ctx;
 
@@ -144,9 +147,44 @@ function draw(ts) {
 
     // Update
     if (!isServerUpdated) {
+        if (one) {
+            console.log(gameState);
+            one = false;
+        }
         for (const player of gameState.players) {
-            player.x += player.vx * dt * playerSpeed;
-            player.y += player.vy * dt * playerSpeed;
+            let newX = player.x + player.vx * dt * playerSpeed;
+            let newY = player.y + player.vy * dt * playerSpeed;
+
+            const { tile, bottom, right, bottomRight } = getAroundMap(gameState.state.map, Math.floor(newX), Math.floor(newY))
+            const cornerX = newX - Math.floor(newX) > 0;
+            const cornerY = newY - Math.floor(newY) > 0;
+
+            if (player.vx > 0) {
+                if (right === WallTile || (cornerY && bottomRight === WallTile)) {
+                    newX = Math.floor(newX);
+                }
+            }
+
+            if (player.vx < 0) {
+                if (tile === WallTile || (cornerY && bottom === WallTile)) {
+                    newX = Math.ceil(newX);
+                }
+            }
+
+            if (player.vy > 0) {
+                if (bottom === WallTile || (cornerX && bottomRight === WallTile)) {
+                    newY = Math.floor(newY);
+                }
+            }
+
+            if (player.vy < 0) {
+                if (tile === WallTile || (cornerX && right === WallTile)) {
+                    newY = Math.ceil(newY);
+                }
+            }
+
+            player.x = newX
+            player.y = newY
         }
     } else {
         isServerUpdated = false;
@@ -157,9 +195,12 @@ function draw(ts) {
     ctx.fillRect(0, 0, width, height);
 
     const { width: mapWidth, height: mapHeight } = gameState.state.map;
-    const cellWidth = width / mapWidth;
-    const cellHeight = height / mapHeight;
+    const cellWidth = Math.floor(width / mapWidth);
+    const cellHeight = Math.floor(height / mapHeight);
+    const teamAColor = "#" + gameState.state.teamA.toString(16).padStart(6, '0');
+    const teamBColor = "#" + gameState.state.teamB.toString(16).padStart(6, '0');
 
+    // Render map
     for (let i = 0; i < mapWidth * mapHeight; i++) {
         const x = i % mapWidth;
         const y = Math.floor(i / mapWidth);
@@ -169,11 +210,11 @@ function draw(ts) {
                 // Empty
             } break;
             case 1: {
-                ctx.fillStyle = "#" + gameState.state.teamA.toString(16).padStart(6, '0');
+                ctx.fillStyle = teamAColor;
                 ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
             } break;
             case 2: {
-                ctx.fillStyle = "#" + gameState.state.teamB.toString(16).padStart(6, '0');
+                ctx.fillStyle = teamBColor;
                 ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
             } break;
             case 3: {
@@ -183,25 +224,25 @@ function draw(ts) {
         }
     }
 
+    // Render players
     if (gameState.state.phase === 1) {
-        for (let i = 0; i < gameState.players.length; i++) {
-            const player = gameState.players[i];
+        for (const player of gameState.players) {
             if (player.user.id === myData.id) {
                 ctx.fillStyle = "#ffffff";
                 ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
-                ctx.fillStyle = "#" + gameState.state[i === 0 ? "teamA" : "teamB"].toString(16).padStart(6, '0');
+                ctx.fillStyle = player.team === 0 ? teamAColor : teamBColor;
                 ctx.fillRect(player.x * cellWidth + 0.1 * cellWidth, player.y * cellHeight + 0.1 * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
             } else {
-                ctx.fillStyle = "#" + gameState.state[i === 0 ? "teamA" : "teamB"].toString(16).padStart(6, '0');
+                ctx.fillStyle = player.team === 0 ? teamAColor : teamBColor;
                 ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
             }
         }
     }
 
-    requestAnimationFrame(draw);
+    requestAnimationFrame(tick);
 }
 
-requestAnimationFrame(draw);
+requestAnimationFrame(tick);
 
 function appendMessage(from, message) {
     const chatBox = document.getElementById('chatBox');
@@ -234,7 +275,8 @@ function appendMessage(from, message) {
     }, root);
 
     window.addEventListener("keydown", (e) => {
-        switch (e.key) {
+        if (e.repeat) return;
+        switch (e.code) {
             case "ArrowUp": {
                 ws.send(JSON.stringify({
                     type: 'action',
@@ -259,17 +301,33 @@ function appendMessage(from, message) {
                     data: { action: "move", direction: 'right', start: true }
                 }));
             } break;
-            case " ": {
+            case "Enter": {
                 ws.send(JSON.stringify({
                     type: 'action',
                     data: { action: "start" }
                 }));
             } break;
+            case "Space": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "shoot" }
+                }));
+            } break;
+            case "Tab": {
+                ws.send(JSON.stringify({
+                    type: 'action',
+                    data: { action: "team" }
+                }));
+            } break;
+            case "r": {
+                one = true;
+            } break;
         }
     })
 
     window.addEventListener("keyup", (e) => {
-        switch (e.key) {
+        if (e.repeat) return;
+        switch (e.code) {
             case "ArrowUp": {
                 ws.send(JSON.stringify({
                     type: 'action',
@@ -323,7 +381,7 @@ function appendMessage(from, message) {
         rendering = true;
         requestAnimationFrame((timestamp) => {
             lastTimestamp = timestamp;
-            draw(timestamp);
+            tick(timestamp);
         });
     }
 
@@ -400,6 +458,10 @@ function setupWSListeners(ws, handlers, root) {
             case "error": {
                 console.error('Error:', msg.data);
             } break;
+            case "map": {
+                const {x, y, state} = msg.data;
+                game.state.state.map.tiles[y * state.map.width + x] = state;
+            } break;
             default: {
                 console.error('Unknown message type:', msg.type);
             }
@@ -416,4 +478,19 @@ function setupWSListeners(ws, handlers, root) {
         myData.username = undefined
         // TODO: reconnect
     });
+}
+
+function getFromMap(map, x, y) {
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) {
+        return WallTile;
+    }
+    return map.tiles[y * map.width + x];
+}
+
+function getAroundMap(map, x, y) {
+    const tile = getFromMap(map, x, y);
+    const bottom = getFromMap(map, x, y + 1);
+    const right = getFromMap(map, x + 1, y);
+    const bottomRight = getFromMap(map, x + 1, y + 1);
+    return { tile, bottom, right, bottomRight };
 }

@@ -35,39 +35,36 @@ func randomName() string {
 
 func UpdateState() {
 	for _, game := range entities.Games {
-		for _, player := range game.Players {
-			player.X += float32(player.VX) * PlayerSpeed * float32(GameTick.Seconds())
-			player.Y += float32(player.VY) * PlayerSpeed * float32(GameTick.Seconds())
-		}
+		game.Update()
 	}
 }
 
 func BroadcastState() {
 	for _, game := range entities.Games {
 		state := game.Stringify()
-		msg := Message{
+		msg := structs.Message{
 			Type: "state",
 			Data: state,
 		}
 		jsonState, _ := json.Marshal(msg)
 		for _, player := range game.Players {
-			conn := connections[player.User.ID]
-			if conn == nil {
-				continue
-			}
-			player.User.C.WriteMessage(websocket.TextMessage, jsonState)
+			player.User.Send(jsonState)
 		}
 	}
 }
 
-func SendMessage(t string, data map[string]any, to ...*websocket.Conn) {
-	msg := Message{
-		Type: t,
-		Data: data,
+func updateMap(game *entities.Game, cellX, cellY int, state entities.Tile) {
+	msg := structs.Message{
+		Type: "map",
+		Data: map[string]any{
+			"x":     cellX,
+			"y":     cellY,
+			"state": state,
+		},
 	}
 	jsonMsg, _ := json.Marshal(msg)
-	for _, conn := range to {
-		conn.WriteMessage(websocket.TextMessage, jsonMsg)
+	for _, player := range game.Players {
+		player.User.Send(jsonMsg)
 	}
 }
 
@@ -95,12 +92,11 @@ func main() {
 	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
 		id := fmt.Sprintf("%X", rand.Int63())
 		user := entities.NewUser(c, id, randomName())
-		connections[id] = user
-		SendMessage("connected", map[string]any{"id": id, "username": connections[id].Username}, c)
+		user.SendMessage("connected", map[string]any{"id": id, "username": user.Username})
 
 		// websocket.Conn bindings https://pkg.go.dev/github.com/fasthttp/websocket?tab=doc#pkg-index
 		for {
-			message := Message{}
+			message := structs.Message{}
 			if err := c.ReadJSON(&message); err != nil {
 				log.Println("read:", err)
 				break
@@ -111,54 +107,66 @@ func main() {
 			switch message.Type {
 			case "host":
 				if game != nil {
-					SendMessage("error", map[string]any{"message": "You are already in a game"}, c)
+					user.SendMessage("error", map[string]any{"message": "You are already in a game"})
 				} else {
-					room := entities.NewGame(connections[id])
-					SendMessage("hosted", map[string]any{"room": room}, c)
+					room := entities.NewGame(user)
+					user.SendMessage("hosted", map[string]any{"room": room})
 				}
 			case "join":
 				if game != nil {
-					SendMessage("error", map[string]any{"message": "You are already in a game"}, c)
+					user.SendMessage("error", map[string]any{"message": "You are already in a game"})
 				} else {
 					room := strings.ToUpper(message.Data["room"].(string))
 					game = entities.FindGameByRoom(room)
 					if game == nil {
-						SendMessage("error", map[string]any{"message": "Room not found"}, c)
+						user.SendMessage("error", map[string]any{"message": "Room not found"})
 					} else {
-						game.Players = append(game.Players, connections[id].ToPlayer())
-						SendMessage("joined", map[string]any{"room": room}, c)
+						game.AddUser(user)
+						user.SendMessage("joined", map[string]any{"room": room})
 					}
 				}
 			case "leave":
 				game.RemovePlayer(id)
-				SendMessage("left", map[string]any{}, c)
+				user.SendMessage("left", map[string]any{})
 			case "action":
 				if game == nil {
-					SendMessage("error", map[string]any{"message": "You are not in a game"}, c)
+					user.SendMessage("error", map[string]any{"message": "You are not in a game"})
 					continue
 				}
 
 				switch message.Data["action"] {
 				case "start":
-					game.Start(id)
+					err := game.Start(id)
+					if err != nil {
+						user.Error(err.Error())
+					}
+				case "team":
+					err := game.SwitchTeams(id)
+					if err != nil {
+						user.Error(err.Error())
+					}
 				case "move":
 					direction := message.Data["direction"].(string)
 					start := message.Data["start"].(bool)
 					game.MovePlayer(id, direction, start)
+				case "shoot":
+					cell, error := game.Shoot(id)
+					if error != nil {
+						user.Error(error.Error())
+					} else {
+						updateMap(game, cell.X, cell.Y, cell.State)
+					}
 				}
 			case "chat":
 				// TODO: Add support for commands
-				to := []*websocket.Conn{}
-				for _, player := range game.Players {
-					conn := connections[player.User.ID]
-					if conn != nil {
-						to = append(to, conn.C)
-					}
-				}
-				SendMessage("chat", map[string]any{
+				msg := map[string]any{
 					"message": message.Data["message"],
-					"from":    user.Username},
-					to...)
+					"from":    user.Username,
+				}
+
+				for _, player := range game.Players {
+					player.User.SendMessage("chat", msg)
+				}
 			default:
 				fmt.Println("Unknown message type", message.Type)
 			}
@@ -166,7 +174,6 @@ func main() {
 
 		c.Close()
 		user.Cleanup()
-		connections[id] = nil
 	}))
 
 	log.Fatal(app.Listen(":3000"))

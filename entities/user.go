@@ -1,6 +1,9 @@
 package entities
 
 import (
+	"encoding/json"
+	"online-game/structs"
+
 	"github.com/gofiber/contrib/websocket"
 )
 
@@ -22,22 +25,34 @@ func NewUser(c *websocket.Conn, id, username string) *User {
 	return user
 }
 
-// func (u *User) Stringify() string {
-// 	return
-// }
-
-func (u *User) Join(roomId string) {
-	// Join the room
+func (u *User) Send(msg []byte) error {
+	return u.C.WriteMessage(websocket.TextMessage, msg)
 }
 
-func (u *User) ToPlayer() *Player {
+func (u *User) SendMessage(t string, data map[string]any) {
+	msg := structs.Message{
+		Type: t,
+		Data: data,
+	}
+	jsonMsg, _ := json.Marshal(msg)
+	u.Send(jsonMsg)
+}
+
+func (u *User) Error(message string) {
+	u.SendMessage("error", map[string]any{"message": message})
+}
+
+func (u *User) ToPlayer(team TeamID) *Player {
 	return &Player{
 		User: u,
-		// Location: loc,
+		Team: team,
 	}
 }
 
 func (u *User) Cleanup() {
 	game := FindUserInfo(u.ID)
-	game.RemovePlayer(u.ID)
+	if game != nil {
+		game.RemovePlayer(u.ID)
+	}
+	delete(Users, u.ID)
 }

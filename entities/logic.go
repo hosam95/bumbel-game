@@ -101,3 +101,27 @@ func (gs *GameState) Stringify() map[string]interface{} {
 		"phase": gs.Phase,
 	}
 }
+
+func (m *Map) Get(x, y int) Tile {
+	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
+		return WallTile
+	}
+
+	return m.Tiles[y*m.Width+x]
+}
+
+func (m *Map) GetAround(x, y int) (tile Tile, bottom Tile, right Tile, bottomRight Tile) {
+	tile = m.Get(x, y)
+	bottom = m.Get(x, y+1)
+	right = m.Get(x+1, y)
+	bottomRight = m.Get(x+1, y+1)
+	return
+}
+
+func (m *Map) Set(x, y int, tile Tile) {
+	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
+		return
+	}
+
+	m.Tiles[y*m.Width+x] = tile
+}
