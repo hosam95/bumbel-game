@@ -253,14 +253,17 @@ function tick(ts) {
     // Render players
     if (gameState.state.phase === 1) {
         for (const player of gameState.players) {
+            const x = player.x + mapWidthOffset;
+            const y = player.y + mapHeightOffset;
+
             if (player.user.id === myData.id) {
                 ctx.fillStyle = "#ffffff";
-                ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
+                ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 ctx.fillStyle = player.team === 0 ? teamAColor : teamBColor;
-                ctx.fillRect(player.x * cellWidth + 0.1 * cellWidth, player.y * cellHeight + 0.1 * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
+                ctx.fillRect((x + 0.1) * cellWidth, (y + 0.1) * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
             } else {
                 ctx.fillStyle = player.team === 0 ? teamAColor : teamBColor;
-                ctx.fillRect(player.x * cellWidth, player.y * cellHeight, cellWidth, cellHeight);
+                ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
             }
         }
     }
