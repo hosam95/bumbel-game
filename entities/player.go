@@ -107,3 +107,8 @@ func (p *Player) Update(gameMap *Map) {
 	p.X = newX
 	p.Y = newY
 }
+
+func (p *Player) Reset() {
+	p.VX = 0
+	p.VY = 0
+}

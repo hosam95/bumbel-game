@@ -188,11 +188,8 @@ func (g *Game) Start(userId string) error {
 		return errors.New("need at least one player on each team")
 	}
 
-	if g.State.Phase == GameOver {
-		g.State = *NewGameState(MapWidth, MapHeight)
-	} else {
-		g.State.GameMap.Clear()
-	}
+	g.State = *NewGameState(MapWidth, MapHeight)
+	g.BroadcastTD("map", g.State.GameMap.Serialize())
 
 	g.State.Phase = Playing
 	g.Started = true
@@ -207,6 +204,7 @@ func (g *Game) Start(userId string) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -272,7 +270,11 @@ func (g *Game) Update() {
 func (g *Game) Finish() {
 	g.State.Phase = GameOver
 	g.Started = false
+	for _, player := range g.Players {
+		player.Reset()
+	}
 	g.BroadcastSystem("info", "Game over")
+	g.LC = true
 }
 
 func (g *Game) Terminate() {

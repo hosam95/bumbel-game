@@ -55,14 +55,10 @@ func BroadcastMap() {
 			continue
 		}
 
-		msg := structs.Message{
+		game.Broadcast(structs.Message{
 			Type: "map",
 			Data: game.State.GameMap.Serialize(),
-		}
-		jsonMap, _ := json.Marshal(msg)
-		for _, player := range game.Players {
-			player.User.Send(jsonMap)
-		}
+		})
 	}
 }
 
@@ -128,8 +124,7 @@ func main() {
 					user.Error("You are already in a game")
 				} else {
 					room := entities.NewGame(user)
-					game = entities.FindGameByRoom(room)
-					user.SendMessage("hosted", map[string]any{"room": room, "map": game.State.GameMap.Serialize()})
+					user.SendMessage("hosted", map[string]any{"room": room})
 				}
 			case "join":
 				if game != nil {
@@ -144,7 +139,7 @@ func main() {
 						if err != nil {
 							user.Error(err.Error())
 						} else {
-							user.SendMessage("joined", map[string]any{"room": room, "map": game.State.GameMap.Serialize()})
+							user.SendMessage("joined", map[string]any{"room": room})
 							game.BroadcastSystem("info", fmt.Sprintf("%s joined the game", user.Username))
 						}
 					}
