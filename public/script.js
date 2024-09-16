@@ -288,15 +288,15 @@ function tick(ts) {
                 case EmptyTile: {
                     // Empty
                 } break;
-                case WallTile: {
+                case TeamATile: {
                     ctx.fillStyle = teamAColor;
                     ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 } break;
-                case TeamATile: {
+                case TeamBTile: {
                     ctx.fillStyle = teamBColor;
                     ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 } break;
-                case TeamBTile: {
+                case WallTile: {
                     ctx.fillStyle = "#FFA823";
                     ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 } break;
