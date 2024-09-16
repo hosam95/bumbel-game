@@ -28,7 +28,7 @@ func ParseMessage(msg []byte) (*structs.Message, error) {
 func randomName() string {
 	first := []string{"The"}
 	second := []string{"Fiery", "Icy", "Electric", "Magnetic", "Toxic", "Radioactive", "Mystic", "Dark", "Light", "Wind", "Water", "Earth", "Fire"}
-	third := []string{"Chickens", "Ducks", "Geese", "Pigeons", "Eagles", "Falcons", "Hawks", "Owls", "Parrots", "Penguins", "Robins", "Sparrows", "Swans", "Turkeys"}
+	third := []string{"Chicken", "Duck", "Geese", "Pigeon", "Eagle", "Falcon", "Hawk", "Owl", "Parrot", "Penguin", "Robin", "Sparrow", "Swan", "Turkey"}
 
 	return fmt.Sprintf("%s %s %s", first[rand.Intn(len(first))], second[rand.Intn(len(second))], third[rand.Intn(len(third))])
 }
