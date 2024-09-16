@@ -140,9 +140,13 @@ func main() {
 					if game == nil {
 						user.Error("Room not found")
 					} else {
-						game.AddUser(user)
-						user.SendMessage("joined", map[string]any{"room": room, "map": game.State.GameMap.Serialize()})
-						game.BroadcastSystem("info", fmt.Sprintf("%s joined the game", user.Username))
+						err := game.AddUser(user)
+						if err != nil {
+							user.Error(err.Error())
+						} else {
+							user.SendMessage("joined", map[string]any{"room": room, "map": game.State.GameMap.Serialize()})
+							game.BroadcastSystem("info", fmt.Sprintf("%s joined the game", user.Username))
+						}
 					}
 				}
 			case "leave":

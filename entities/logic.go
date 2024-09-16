@@ -37,6 +37,8 @@ type GameState struct {
 	GameMap Map       `json:"map"`
 	TeamA   int       `json:"teamA"`
 	TeamB   int       `json:"teamB"`
+	ScoreA  int       `json:"scoreA"`
+	ScoreB  int       `json:"scoreB"`
 	Phase   GamePhase `json:"phase"`
 }
 
@@ -95,9 +97,11 @@ func RandomGameState(width, height int) *GameState {
 
 func (gs *GameState) Stringify() map[string]interface{} {
 	return map[string]interface{}{
-		"teamA": gs.TeamA,
-		"teamB": gs.TeamB,
-		"phase": gs.Phase,
+		"teamA":  gs.TeamA,
+		"teamB":  gs.TeamB,
+		"scoreA": gs.ScoreA,
+		"scoreB": gs.ScoreB,
+		"phase":  gs.Phase,
 	}
 }
 

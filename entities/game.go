@@ -12,6 +12,8 @@ const TickRate = 30
 const GameTick = time.Millisecond * 1000 / TickRate
 const MapTick = TickRate * 5 // every 5 seconds
 
+const MaxPlayers = 8
+const GameDuration = 60 * time.Second
 const PlayerSpeed = 10
 
 const MapWidth = 48
@@ -23,6 +25,9 @@ type Game struct {
 	Host    string    `json:"host"`
 	Room    string    `json:"room"`
 	LC      bool      `json:"-"` // large change
+
+	Started   bool      `json:"started"`
+	StartedAt time.Time `json:"startedAt"`
 }
 
 var Games = []*Game{}
@@ -74,26 +79,37 @@ func FindUserInfo(userId string) *Game {
 
 func (g *Game) Stringify() map[string]interface{} {
 	gameMap := map[string]interface{}{
-		"players": g.Players.Stringify(),
-		"state":   g.State.Stringify(),
-		"host":    g.Host,
-		"room":    g.Room,
+		"players":   g.Players.Stringify(),
+		"state":     g.State.Stringify(),
+		"host":      g.Host,
+		"room":      g.Room,
+		"started":   g.Started,
+		"startedAt": g.StartedAt,
 	}
 
 	return gameMap
 }
 
-func (g *Game) AddUser(user *User) {
+func (g *Game) AddUser(user *User) error {
+	if len(g.Players) >= MaxPlayers {
+		return errors.New("game is full")
+	}
+
+	if g.State.Phase != WaitingForPlayers {
+		return errors.New("game has already started")
+	}
 	var newTeam TeamID
-	if len(g.Players)&1 == 0 {
-		newTeam = TeamB
-	} else {
+	if len(g.Players)&1 == 0 { // even number of players
 		newTeam = TeamA
+	} else {
+		newTeam = TeamB
 	}
 
 	player := user.ToPlayer(newTeam)
 	g.Players = append(g.Players, player)
 	g.LC = true
+
+	return nil
 }
 
 func (g *Game) RemovePlayer(userId string) {
@@ -104,7 +120,7 @@ func (g *Game) RemovePlayer(userId string) {
 		}
 	}
 	if len(g.Players) == 0 {
-		g.Finish()
+		g.Terminate()
 	} else if len(g.Players) < 2 {
 		g.State.Phase = WaitingForPlayers
 		g.State.GameMap.Clear()
@@ -145,7 +161,7 @@ func (g *Game) SwitchTeams(userId string) error {
 }
 
 func (g *Game) Start(userId string) error {
-	if g.State.Phase != WaitingForPlayers {
+	if g.State.Phase == Playing {
 		return errors.New("game has already started")
 	}
 
@@ -172,7 +188,16 @@ func (g *Game) Start(userId string) error {
 		return errors.New("need at least one player on each team")
 	}
 
+	if g.State.Phase == GameOver {
+		g.State = *NewGameState(MapWidth, MapHeight)
+	} else {
+		g.State.GameMap.Clear()
+	}
+
 	g.State.Phase = Playing
+	g.Started = true
+	g.StartedAt = time.Now()
+
 	for _, player := range g.Players {
 		for {
 			player.X = rand.Float64() * float64(g.State.GameMap.Width)
@@ -198,19 +223,28 @@ func (g *Game) Shoot(userId string) (CellResult, error) {
 		return CellResult{}, errors.New("player not found")
 	}
 
-	x := int(player.X)
-	y := int(player.Y)
+	x := int(player.X + 0.5)
+	y := int(player.Y + 0.5)
 
 	curr := g.State.GameMap.Get(x, y)
 	if curr == WallTile {
 		return CellResult{}, errors.New("cannot paint wall")
 	}
+	switch curr {
+	case TeamATile:
+		g.State.ScoreA--
+	case TeamBTile:
+		g.State.ScoreB--
+	}
+
 	var newTile Tile
 	switch player.Team {
 	case TeamA:
 		newTile = TeamATile
+		g.State.ScoreA++
 	case TeamB:
 		newTile = TeamBTile
+		g.State.ScoreB++
 	}
 	g.State.GameMap.Set(x, y, newTile)
 
@@ -230,9 +264,18 @@ func (g *Game) Update() {
 	for _, player := range g.Players {
 		player.Update(&gameMap)
 	}
+	if time.Since(g.StartedAt) > GameDuration {
+		g.Finish()
+	}
 }
 
 func (g *Game) Finish() {
+	g.State.Phase = GameOver
+	g.Started = false
+	g.BroadcastSystem("info", "Game over")
+}
+
+func (g *Game) Terminate() {
 	for i, game := range Games {
 		if game == g {
 			Games = append(Games[:i], Games[i+1:]...)

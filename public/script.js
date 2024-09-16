@@ -1,5 +1,3 @@
-const playerSpeed = 10;
-
 const game = { state: null, ctx: null, map: null };
 let activeScreen = 0; // 0: Home, 1: Game
 let lastTimestamp = 0;
@@ -11,6 +9,8 @@ const myData = {
 let isServerUpdated = false;
 
 // CONSTANTS
+const playerSpeed = 10;
+const gameDuration = 60 * 1000; // 1 minute
 // Game States
 const WaitingForPlayers = 0
 const Playing = 1
@@ -22,7 +22,7 @@ const TeamATile = 1
 const TeamBTile = 2
 const WallTile = 3
 
-function HomeScreen(root, _data, handlers) {
+function HomeScreen(root, handlers) {
     activeScreen = 0;
 
     const center = document.createElement('div');
@@ -68,7 +68,7 @@ function HomeScreen(root, _data, handlers) {
     })
 }
 
-function GameScreen(root, data, handlers) {
+function GameScreen(root, handlers) {
     activeScreen = 1;
 
     const container = document.createElement('div');
@@ -82,6 +82,7 @@ function GameScreen(root, data, handlers) {
     canvas.id = 'canvas';
     canvas.width = 1600;
     canvas.height = 900;
+    canvas.tabIndex = 1;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Failed to get 2d context');
     game.ctx = ctx;
@@ -126,6 +127,8 @@ function GameScreen(root, data, handlers) {
 
     root.replaceChildren(container);
 
+    handlers.setupGameControls(canvas);
+
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             handlers.chat(chatInput);
@@ -161,6 +164,7 @@ function tick(ts) {
     if (!isServerUpdated) {
         if (one) {
             console.log(gameState);
+            console.log(new Date(gameState.startedAt));
             one = false;
         }
         for (const player of gameState.players) {
@@ -206,15 +210,57 @@ function tick(ts) {
     const teamAColor = "#" + gameState.state.teamA.toString(16).padStart(6, '0');
     const teamBColor = "#" + gameState.state.teamB.toString(16).padStart(6, '0');
 
-    // Top bar
+    // Bars
     ctx.fillStyle = "#353535";
-    ctx.fillRect(0, 0, width, hOffset); // top 10% of canvas
-    // TODO: render timer when implemented
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "#f0f0f0";
+    ctx.font = "30px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`Room: ${gameState.room}`, wOffset / 2, hOffset / 2, wOffset - 16);
+
+    // Top bar
+    if (gameState.started) {
+        const started = new Date(gameState.startedAt);
+        const now = new Date();
+        const left = gameDuration - (now - started);
+        ctx.fillStyle = "#f0f0f0";
+        if (left <= 0) {
+            ctx.fillText("Time is up", wOffset + wRest / 2, hOffset / 2);
+        } else {
+            const minutes = Math.floor(left / 1000 / 60).toString().padStart(2, '0');
+            const seconds = (Math.floor(left / 1000) % 60).toString().padStart(2, '0');
+            ctx.fillText(`${minutes}:${seconds}`, wOffset + wRest / 2, hOffset / 2);
+        }
+    } else {
+        ctx.fillStyle = "#f0f0f0";
+        ctx.fillText("Waiting for players", width / 2, hOffset / 2);
+    }
 
     // Sidebar
-    ctx.fillStyle = "#353535";
-    ctx.fillRect(0, 0, wOffset, height); // left 10% of canvas
-    // TODO: render score when implemented
+    const sidebarCenter = hOffset + hRest / 2
+    // score
+    const score = gameState.started ? `${gameState.state.scoreA} - ${gameState.state.scoreB}` : "0 - 0";
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillText(score, wOffset / 2, sidebarCenter, wOffset - 16);
+
+    // Teams
+    const teamA = gameState.players.filter(p => p.team === 0);
+    const teamB = gameState.players.filter(p => p.team === 1);
+    const squareSize = wOffset - 16;
+
+    // team A
+    ctx.fillStyle = teamAColor;
+    ctx.fillRect(8, sidebarCenter - 30 - squareSize, squareSize, squareSize);
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillText(`Team A (${teamA.length})`, wOffset / 2, sidebarCenter - 50 - squareSize, wOffset - 16);
+
+    // team B
+    ctx.fillStyle = teamBColor;
+    ctx.fillRect(8, sidebarCenter + 30, squareSize, squareSize);
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillText(`Team B (${teamB.length})`, wOffset / 2, sidebarCenter + 50 + squareSize, wOffset - 16);
 
     // Map
     ctx.fillStyle = "#FFD35A";
@@ -255,14 +301,20 @@ function tick(ts) {
         for (const player of gameState.players) {
             const x = player.x + mapWidthOffset;
             const y = player.y + mapHeightOffset;
+            const color = player.team === 0 ? teamAColor : teamBColor;
 
             if (player.user.id === myData.id) {
-                ctx.fillStyle = "#ffffff";
+                ctx.fillStyle = myData.id === gameState.host ? "#fcbe03" : "#ffffff";
                 ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
-                ctx.fillStyle = player.team === 0 ? teamAColor : teamBColor;
-                ctx.fillRect((x + 0.1) * cellWidth, (y + 0.1) * cellHeight, cellWidth * 0.8, cellHeight * 0.8);
+                ctx.fillStyle = color;
+                ctx.fillRect((x + 0.1) * cellWidth, (y + 0.1) * cellHeight, 0.8 * cellWidth, 0.8 * cellHeight);
+            } else if (player.user.id === gameState.host) {
+                ctx.fillStyle = "#fcbe03";
+                ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+                ctx.fillStyle = color;
+                ctx.fillRect((x + 0.1) * cellWidth, (y + 0.1) * cellHeight, 0.8 * cellWidth, 0.8 * cellHeight);
             } else {
-                ctx.fillStyle = player.team === 0 ? teamAColor : teamBColor;
+                ctx.fillStyle = color;
                 ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
             }
         }
@@ -319,89 +371,92 @@ function appendSystemMessage(type, message) {
         hostRoom,
         leaveRoom,
         startGame,
-        chat
+        chat,
+        setupGameControls
     }, root);
 
-    window.addEventListener("keydown", (e) => {
-        if (e.repeat) return;
-        switch (e.code) {
-            case "ArrowUp": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'up', start: true }
-                }));
-            } break;
-            case "ArrowDown": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'down', start: true }
-                }));
-            } break;
-            case "ArrowLeft": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'left', start: true }
-                }));
-            } break;
-            case "ArrowRight": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'right', start: true }
-                }));
-            } break;
-            case "KeyQ": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "start" }
-                }));
-            } break;
-            case "KeyZ": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "shoot" }
-                }));
-            } break;
-            case "KeyT": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "team" }
-                }));
-            } break;
-            case "KeyR": {
-                one = true;
-            } break;
-        }
-    })
+    function setupGameControls(canvas) {
+        canvas.addEventListener("keydown", (e) => {
+            if (e.repeat) return;
+            switch (e.code) {
+                case "ArrowUp": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'up', start: true }
+                    }));
+                } break;
+                case "ArrowDown": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'down', start: true }
+                    }));
+                } break;
+                case "ArrowLeft": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'left', start: true }
+                    }));
+                } break;
+                case "ArrowRight": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'right', start: true }
+                    }));
+                } break;
+                case "KeyQ": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "start" }
+                    }));
+                } break;
+                case "KeyZ": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "shoot" }
+                    }));
+                } break;
+                case "KeyT": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "team" }
+                    }));
+                } break;
+                case "KeyR": {
+                    one = true;
+                } break;
+            }
+        })
 
-    window.addEventListener("keyup", (e) => {
-        if (e.repeat) return;
-        switch (e.code) {
-            case "ArrowUp": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'up', start: false }
-                }));
-            } break;
-            case "ArrowDown": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'down', start: false }
-                }));
-            } break;
-            case "ArrowLeft": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'left', start: false }
-                }));
-            } break;
-            case "ArrowRight": {
-                ws.send(JSON.stringify({
-                    type: 'action',
-                    data: { action: "move", direction: 'right', start: false }
-                }));
-            } break;
-        }
-    })
+        canvas.addEventListener("keyup", (e) => {
+            if (e.repeat) return;
+            switch (e.code) {
+                case "ArrowUp": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'up', start: false }
+                    }));
+                } break;
+                case "ArrowDown": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'down', start: false }
+                    }));
+                } break;
+                case "ArrowLeft": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'left', start: false }
+                    }));
+                } break;
+                case "ArrowRight": {
+                    ws.send(JSON.stringify({
+                        type: 'action',
+                        data: { action: "move", direction: 'right', start: false }
+                    }));
+                } break;
+            }
+        })
+    }
 
     function joinRoom(roomInput) {
         const room = roomInput.value;
@@ -443,14 +498,14 @@ function appendSystemMessage(type, message) {
         chatInput.value = '';
     }
 
-    HomeScreen(root, {}, {
+    HomeScreen(root, {
         joinRoom,
         hostRoom
     });
 })()
 
 function setupWSListeners(ws, handlers, root) {
-    const { joinRoom, hostRoom, leaveRoom, chat, startGame } = handlers;
+    const { joinRoom, hostRoom, leaveRoom, chat, startGame, setupGameControls } = handlers;
     ws.addEventListener("open", () => {
         console.log('Connected');
     })
@@ -462,16 +517,18 @@ function setupWSListeners(ws, handlers, root) {
                 myData.username = msg.data.username;
             } break;
             case "hosted": {
-                GameScreen(root, { room: msg.data.room }, {
+                GameScreen(root, {
                     leaveRoom,
-                    chat
+                    chat,
+                    setupGameControls
                 });
                 game.map = msg.data.map;
             } break;
             case "joined": {
-                GameScreen(root, { room: msg.data.room }, {
+                GameScreen(root, {
                     leaveRoom,
-                    chat
+                    chat,
+                    setupGameControls
                 });
                 game.map = msg.data.map;
             } break;
@@ -483,9 +540,6 @@ function setupWSListeners(ws, handlers, root) {
                     game.state = msg.data;
                 }
                 isServerUpdated = true;
-
-                const playerCount = document.getElementById('playerCount');
-                playerCount.textContent = `Players: ${msg.data.players.length}`;
 
                 if (activeScreen !== 1) {
                     console.error("should be unreachable");
@@ -499,7 +553,7 @@ function setupWSListeners(ws, handlers, root) {
                 game.map = msg.data;
             } break;
             case "left": {
-                HomeScreen(root, {}, {
+                HomeScreen(root, {
                     joinRoom,
                     hostRoom
                 });
