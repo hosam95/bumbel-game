@@ -58,6 +58,12 @@ function HomeScreen(root, handlers) {
 
     root.replaceChildren(center);
 
+    roomInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            handlers.joinRoom(roomInput);
+        }
+    })
+
     joinBtn.addEventListener("click", () => {
         handlers.joinRoom(roomInput);
     });
