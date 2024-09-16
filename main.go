@@ -146,10 +146,16 @@ func main() {
 						user.Error(err.Error())
 					}
 				case "move":
+					if game.State.Phase != entities.Playing {
+						continue
+					}
 					direction := message.Data["direction"].(string)
 					start := message.Data["start"].(bool)
 					game.MovePlayer(id, direction, start)
 				case "shoot":
+					if game.State.Phase != entities.Playing {
+						continue
+					}
 					cell, error := game.Shoot(id)
 					if error != nil {
 						user.Error(error.Error())
