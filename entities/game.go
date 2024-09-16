@@ -14,8 +14,8 @@ const MapTick = TickRate * 5 // every 5 seconds
 
 const PlayerSpeed = 10
 
-const MapWidth = 40
-const MapHeight = 30
+const MapWidth = 48
+const MapHeight = 27
 
 type Game struct {
 	Players Players   `json:"players"`

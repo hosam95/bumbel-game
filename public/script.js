@@ -10,21 +10,34 @@ const myData = {
 }
 let isServerUpdated = false;
 
-const WallTile = 3;
+// CONSTANTS
+// Game States
+const WaitingForPlayers = 0
+const Playing = 1
+const GameOver = 2
+
+// Tile Types
+const EmptyTile = 0
+const TeamATile = 1
+const TeamBTile = 2
+const WallTile = 3
 
 function HomeScreen(root, _data, handlers) {
     activeScreen = 0;
 
     const center = document.createElement('div');
-    center.className = 'center';
+    center.classList.add('center', "full-height");
+
+    const container = document.createElement('div');
+    center.appendChild(container);
 
     const h1 = document.createElement('h1');
     h1.textContent = 'Online Game';
-    center.appendChild(h1);
+    container.appendChild(h1);
 
     const roomBox = document.createElement('div');
     roomBox.className = 'row';
-    center.appendChild(roomBox);
+    container.appendChild(roomBox);
 
     const span = document.createElement('span');
     span.textContent = 'Room ID:';
@@ -58,43 +71,39 @@ function HomeScreen(root, _data, handlers) {
 function GameScreen(root, data, handlers) {
     activeScreen = 1;
 
-    const dashboard = document.createElement('div');
-    dashboard.classList.add('dashboard', "row");
-
-    const roomId = document.createElement('span');
-    roomId.textContent = `Room ID: ${data.room}`;
-    dashboard.appendChild(roomId);
-
-    const playerCount = document.createElement('span');
-    playerCount.id = 'playerCount';
-    playerCount.textContent = `Players: ${data?.players?.length ?? 0}`;
-    dashboard.appendChild(playerCount);
-
-    const leaveBtn = document.createElement('button');
-    leaveBtn.classList.add("btn", "danger");
-    leaveBtn.textContent = 'Leave Room';
-    dashboard.appendChild(leaveBtn);
-
     const container = document.createElement('div');
-    container.classList.add("game-container");
+    container.classList.add("game-container", "full-height");
+
+    const canvasContainer = document.createElement('div');
+    canvasContainer.classList.add("canvas-container", "center");
+    container.appendChild(canvasContainer);
 
     const canvas = document.createElement('canvas');
     canvas.id = 'canvas';
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = 1600;
+    canvas.height = 900;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Failed to get 2d context');
     game.ctx = ctx;
-    container.appendChild(canvas);
+    canvasContainer.appendChild(canvas);
 
     const chat = document.createElement('div');
     chat.classList.add("chat");
     container.appendChild(chat);
 
+    const titleRow = document.createElement('div');
+    titleRow.classList.add("row", "between");
+    chat.appendChild(titleRow);
+
     const chatTitle = document.createElement('h2');
     chatTitle.classList.add("chat-title");
     chatTitle.textContent = 'Chat';
-    chat.appendChild(chatTitle);
+    titleRow.appendChild(chatTitle);
+
+    const leaveBtn = document.createElement('button');
+    leaveBtn.classList.add("btn", "danger");
+    leaveBtn.textContent = 'Leave Room';
+    titleRow.appendChild(leaveBtn);
 
     const chatBox = document.createElement('div');
     chatBox.id = 'chatBox';
@@ -115,7 +124,7 @@ function GameScreen(root, data, handlers) {
     chatBtn.textContent = 'Send';
     chatSend.appendChild(chatBtn);
 
-    root.replaceChildren(dashboard, container);
+    root.replaceChildren(container);
 
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -139,8 +148,12 @@ function tick(ts) {
     const dt = (ts - lastTimestamp) / 1000;
     lastTimestamp = ts;
     const { width, height } = game.ctx.canvas;
+    const wOffset = width * 0.1;
+    const wRest = width - wOffset;
+    const hOffset = height * 0.1;
+    const hRest = height - hOffset;
 
-    const {state: gameState, ctx, map} = game;
+    const { state: gameState, ctx, map } = game;
 
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
@@ -190,19 +203,33 @@ function tick(ts) {
     }
 
     // Render
-    ctx.fillStyle = "#FFD35A";
-    ctx.fillRect(0, 0, width, height);
-
-    const { width: mapWidth, height: mapHeight } = map;
-    const cellWidth = Math.floor(width / mapWidth);
-    const cellHeight = Math.floor(height / mapHeight);
     const teamAColor = "#" + gameState.state.teamA.toString(16).padStart(6, '0');
     const teamBColor = "#" + gameState.state.teamB.toString(16).padStart(6, '0');
 
+    // Top bar
+    ctx.fillStyle = "#353535";
+    ctx.fillRect(0, 0, width, hOffset); // top 10% of canvas
+    // TODO: render timer when implemented
+
+    // Sidebar
+    ctx.fillStyle = "#353535";
+    ctx.fillRect(0, 0, wOffset, height); // left 10% of canvas
+    // TODO: render score when implemented
+
+    // Map
+    ctx.fillStyle = "#FFD35A";
+    ctx.fillRect(wOffset, hOffset, wRest, hRest);
+
+    const { width: mapWidth, height: mapHeight } = map;
+    const cellWidth = Math.floor(wRest / mapWidth);
+    const mapWidthOffset = wOffset / cellWidth;
+    const cellHeight = Math.floor(hRest / mapHeight);
+    const mapHeightOffset = hOffset / cellHeight;
+
     // Render map
     for (let i = 0; i < mapWidth * mapHeight; i++) {
-        const x = i % mapWidth;
-        const y = Math.floor(i / mapWidth);
+        const x = i % mapWidth + mapWidthOffset;
+        const y = Math.floor(i / mapWidth) + mapHeightOffset;
 
         switch (map.tiles[i]) {
             case 0: {
@@ -490,7 +517,7 @@ function setupWSListeners(ws, handlers, root) {
                 }
             } break;
             case "attack": {
-                const {x, y, state} = msg.data;
+                const { x, y, state } = msg.data;
                 game.map.tiles[y * game.map.width + x] = state;
             } break;
             default: {

@@ -18,11 +18,14 @@
             background-color: #f0f0f0;
         }
 
-        #root {
-            padding: 1rem;
+        .full-height {
+            height: 100vh;
+            height: 100dvh;
         }
 
         .center {
+            display: grid;
+            place-items: center;
             text-align: center;
         }
 
@@ -31,6 +34,10 @@
             justify-content: center;
             align-items: center;
             gap: 0.5rem;
+
+            &.between {
+                justify-content: space-between;
+            }
         }
 
         h1 {
@@ -75,9 +82,10 @@
         }
 
         .game-container {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 5fr 1fr;
             gap: 1rem;
+            padding: 1rem;
         }
 
         .chat {
@@ -140,6 +148,7 @@
 
         canvas {
             border: 1px solid #222;
+            width: 100%;
         }
     </style>
 </head>
