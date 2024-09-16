@@ -1,12 +1,12 @@
 const playerSpeed = 10;
 
-const game = { state: undefined, ctx: undefined };
+const game = { state: null, ctx: null, map: null };
 let activeScreen = 0; // 0: Home, 1: Game
 let lastTimestamp = 0;
 let rendering = false;
 const myData = {
-    id: undefined,
-    username: undefined,
+    id: null,
+    username: null,
 }
 let isServerUpdated = false;
 
@@ -140,8 +140,7 @@ function tick(ts) {
     lastTimestamp = ts;
     const { width, height } = game.ctx.canvas;
 
-    const gameState = game.state;
-    const ctx = game.ctx;
+    const {state: gameState, ctx, map} = game;
 
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
@@ -155,7 +154,7 @@ function tick(ts) {
             let newX = player.x + player.vx * dt * playerSpeed;
             let newY = player.y + player.vy * dt * playerSpeed;
 
-            const { tile, bottom, right, bottomRight } = getAroundMap(gameState.state.map, Math.floor(newX), Math.floor(newY))
+            const { tile, bottom, right, bottomRight } = getAroundMap(map, Math.floor(newX), Math.floor(newY))
             const cornerX = newX - Math.floor(newX) > 0;
             const cornerY = newY - Math.floor(newY) > 0;
 
@@ -194,7 +193,7 @@ function tick(ts) {
     ctx.fillStyle = "#FFD35A";
     ctx.fillRect(0, 0, width, height);
 
-    const { width: mapWidth, height: mapHeight } = gameState.state.map;
+    const { width: mapWidth, height: mapHeight } = map;
     const cellWidth = Math.floor(width / mapWidth);
     const cellHeight = Math.floor(height / mapHeight);
     const teamAColor = "#" + gameState.state.teamA.toString(16).padStart(6, '0');
@@ -205,7 +204,7 @@ function tick(ts) {
         const x = i % mapWidth;
         const y = Math.floor(i / mapWidth);
 
-        switch (gameState.state.map.tiles[i]) {
+        switch (map.tiles[i]) {
             case 0: {
                 // Empty
             } break;
@@ -246,6 +245,7 @@ requestAnimationFrame(tick);
 
 function appendMessage(from, message) {
     const chatBox = document.getElementById('chatBox');
+    if (!chatBox) return false;
 
     const chatMessage = document.createElement('div');
     chatMessage.classList.add('chat-message');
@@ -260,6 +260,24 @@ function appendMessage(from, message) {
     msg.textContent = message;
     msg.classList.add('chat-text');
     chatMessage.appendChild(msg);
+
+    return true;
+}
+
+function appendSystemMessage(type, message) {
+    const chatBox = document.getElementById('chatBox');
+    if (!chatBox) return false;
+
+    const chatMessage = document.createElement('div');
+    chatMessage.classList.add('chat-message', type);
+    chatBox.appendChild(chatMessage);
+
+    const msg = document.createElement('span');
+    msg.textContent = message;
+    msg.classList.add('chat-text');
+    chatMessage.appendChild(msg);
+
+    return true;
 }
 
 (() => {
@@ -301,25 +319,25 @@ function appendMessage(from, message) {
                     data: { action: "move", direction: 'right', start: true }
                 }));
             } break;
-            case "Enter": {
+            case "KeyQ": {
                 ws.send(JSON.stringify({
                     type: 'action',
                     data: { action: "start" }
                 }));
             } break;
-            case "Space": {
+            case "KeyZ": {
                 ws.send(JSON.stringify({
                     type: 'action',
                     data: { action: "shoot" }
                 }));
             } break;
-            case "Tab": {
+            case "KeyT": {
                 ws.send(JSON.stringify({
                     type: 'action',
                     data: { action: "team" }
                 }));
             } break;
-            case "r": {
+            case "KeyR": {
                 one = true;
             } break;
         }
@@ -418,12 +436,14 @@ function setupWSListeners(ws, handlers, root) {
                     leaveRoom,
                     chat
                 });
+                game.map = msg.data.map;
             } break;
             case "joined": {
                 GameScreen(root, { room: msg.data.room }, {
                     leaveRoom,
                     chat
                 });
+                game.map = msg.data.map;
             } break;
             case "state": {
                 if (!game.state || !rendering) {
@@ -445,6 +465,9 @@ function setupWSListeners(ws, handlers, root) {
                     }));
                 }
             } break;
+            case "map": {
+                game.map = msg.data;
+            } break;
             case "left": {
                 HomeScreen(root, {}, {
                     joinRoom,
@@ -456,11 +479,19 @@ function setupWSListeners(ws, handlers, root) {
                 appendMessage(msg.data.from, msg.data.message);
             } break;
             case "error": {
-                console.error('Error:', msg.data);
+                if (!appendSystemMessage('error', msg.data.message)) {
+                    // TODO: find a better way to display error messages
+                    alert(msg.data.message);
+                }
             } break;
-            case "map": {
+            case "system": {
+                if (!appendSystemMessage(msg.data.type, msg.data.msg)) {
+                    console.log(msg.data.type, msg.data.msg);
+                }
+            } break;
+            case "attack": {
                 const {x, y, state} = msg.data;
-                game.state.state.map.tiles[y * state.map.width + x] = state;
+                game.map.tiles[y * game.map.width + x] = state;
             } break;
             default: {
                 console.error('Unknown message type:', msg.type);

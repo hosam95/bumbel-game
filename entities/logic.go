@@ -95,10 +95,17 @@ func RandomGameState(width, height int) *GameState {
 
 func (gs *GameState) Stringify() map[string]interface{} {
 	return map[string]interface{}{
-		"map":   gs.GameMap,
 		"teamA": gs.TeamA,
 		"teamB": gs.TeamB,
 		"phase": gs.Phase,
+	}
+}
+
+func (m *Map) Serialize() map[string]interface{} {
+	return map[string]interface{}{
+		"width":  m.Width,
+		"height": m.Height,
+		"tiles":  m.Tiles,
 	}
 }
 
@@ -124,4 +131,12 @@ func (m *Map) Set(x, y int, tile Tile) {
 	}
 
 	m.Tiles[y*m.Width+x] = tile
+}
+
+func (m *Map) Clear() {
+	for i := range m.Tiles {
+		if m.Tiles[i] != WallTile {
+			m.Tiles[i] = EmptyTile
+		}
+	}
 }

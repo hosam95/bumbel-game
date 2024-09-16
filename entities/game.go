@@ -1,13 +1,16 @@
 package entities
 
 import (
+	"encoding/json"
 	"errors"
 	"math/rand"
+	"online-game/structs"
 	"time"
 )
 
 const TickRate = 30
 const GameTick = time.Millisecond * 1000 / TickRate
+const MapTick = TickRate * 5 // every 5 seconds
 
 const PlayerSpeed = 10
 
@@ -17,8 +20,9 @@ const MapHeight = 30
 type Game struct {
 	Players Players   `json:"players"`
 	State   GameState `json:"state"`
-	Host    *Player   `json:"host"`
+	Host    string    `json:"host"`
 	Room    string    `json:"room"`
+	LC      bool      `json:"-"` // large change
 }
 
 var Games = []*Game{}
@@ -40,8 +44,9 @@ func NewGame(host *User) string {
 			player,
 		},
 		State: *NewGameState(MapWidth, MapHeight),
-		Host:  player,
+		Host:  host.ID,
 		Room:  room,
+		LC:    true,
 	}
 	Games = append(Games, game)
 	return room
@@ -71,7 +76,7 @@ func (g *Game) Stringify() map[string]interface{} {
 	gameMap := map[string]interface{}{
 		"players": g.Players.Stringify(),
 		"state":   g.State.Stringify(),
-		"host":    g.Host.User.ID,
+		"host":    g.Host,
 		"room":    g.Room,
 	}
 
@@ -88,6 +93,7 @@ func (g *Game) AddUser(user *User) {
 
 	player := user.ToPlayer(newTeam)
 	g.Players = append(g.Players, player)
+	g.LC = true
 }
 
 func (g *Game) RemovePlayer(userId string) {
@@ -101,10 +107,12 @@ func (g *Game) RemovePlayer(userId string) {
 		g.Finish()
 	} else if len(g.Players) < 2 {
 		g.State.Phase = WaitingForPlayers
-		if g.Host.User.ID == userId {
-			g.Host = g.Players[0]
+		g.State.GameMap.Clear()
+		if g.Host == userId {
+			g.Host = g.Players[0].User.ID
 		}
 	}
+	g.LC = true
 }
 
 func (g *Game) GetPlayer(userId string) *Player {
@@ -131,6 +139,7 @@ func (g *Game) SwitchTeams(userId string) error {
 	} else {
 		player.Team = TeamA
 	}
+	g.LC = true
 
 	return nil
 }
@@ -140,7 +149,7 @@ func (g *Game) Start(userId string) error {
 		return errors.New("game has already started")
 	}
 
-	if g.Host.User.ID != userId {
+	if g.Host != userId {
 		return errors.New("only the host can start the game")
 	}
 
@@ -213,6 +222,10 @@ func (g *Game) Shoot(userId string) (CellResult, error) {
 }
 
 func (g *Game) Update() {
+	if g.State.Phase != Playing {
+		return
+	}
+
 	gameMap := g.State.GameMap
 	for _, player := range g.Players {
 		player.Update(&gameMap)
@@ -225,5 +238,49 @@ func (g *Game) Finish() {
 			Games = append(Games[:i], Games[i+1:]...)
 			break
 		}
+	}
+}
+
+func (g *Game) Broadcast(message structs.Message, exclude ...string) {
+	jsonMsg, _ := json.Marshal(message)
+
+PlayerLoop:
+	for _, player := range g.Players {
+		for _, ex := range exclude {
+			if player.User.ID == ex {
+				continue PlayerLoop
+			}
+		}
+		player.User.Send(jsonMsg)
+	}
+}
+
+func (g *Game) BroadcastTD(t string, d map[string]interface{}, exclude ...string) {
+	mapped := structs.Message{
+		Type: t,
+		Data: d,
+	}
+	g.Broadcast(mapped, exclude...)
+}
+
+func (g *Game) BroadcastState(exclude ...string) {
+	g.BroadcastTD("state", g.Stringify(), exclude...)
+}
+
+func (g *Game) BroadcastSystem(msgType, msg string, exclude ...string) {
+	mapped := structs.Message{
+		Type: "system",
+		Data: map[string]interface{}{"msg": msg, "type": msgType},
+	}
+	jsonMsg, _ := json.Marshal(mapped)
+
+PlayerLoop:
+	for _, player := range g.Players {
+		for _, ex := range exclude {
+			if player.User.ID == ex {
+				continue PlayerLoop
+			}
+		}
+		player.User.Send(jsonMsg)
 	}
 }

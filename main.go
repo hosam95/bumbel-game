@@ -41,21 +41,34 @@ func UpdateState() {
 
 func BroadcastState() {
 	for _, game := range entities.Games {
-		state := game.Stringify()
-		msg := structs.Message{
-			Type: "state",
-			Data: state,
+		if game.State.Phase != entities.Playing && !game.LC {
+			continue
 		}
-		jsonState, _ := json.Marshal(msg)
+		game.BroadcastState()
+		game.LC = false
+	}
+}
+
+func BroadcastMap() {
+	for _, game := range entities.Games {
+		if game.State.Phase != entities.Playing {
+			continue
+		}
+
+		msg := structs.Message{
+			Type: "map",
+			Data: game.State.GameMap.Serialize(),
+		}
+		jsonMap, _ := json.Marshal(msg)
 		for _, player := range game.Players {
-			player.User.Send(jsonState)
+			player.User.Send(jsonMap)
 		}
 	}
 }
 
 func updateMap(game *entities.Game, cellX, cellY int, state entities.Tile) {
 	msg := structs.Message{
-		Type: "map",
+		Type: "attack",
 		Data: map[string]any{
 			"x":     cellX,
 			"y":     cellY,
@@ -76,9 +89,14 @@ func main() {
 	}))
 
 	go func() {
+		i := 0
 		for range time.Tick(entities.GameTick) {
 			UpdateState()
 			BroadcastState()
+			if i%entities.MapTick == 0 {
+				BroadcastMap()
+			}
+			i++
 		}
 	}()
 
@@ -107,27 +125,30 @@ func main() {
 			switch message.Type {
 			case "host":
 				if game != nil {
-					user.SendMessage("error", map[string]any{"message": "You are already in a game"})
+					user.Error("You are already in a game")
 				} else {
 					room := entities.NewGame(user)
-					user.SendMessage("hosted", map[string]any{"room": room})
+					game = entities.FindGameByRoom(room)
+					user.SendMessage("hosted", map[string]any{"room": room, "map": game.State.GameMap.Serialize()})
 				}
 			case "join":
 				if game != nil {
-					user.SendMessage("error", map[string]any{"message": "You are already in a game"})
+					user.Error("You are already in a game")
 				} else {
 					room := strings.ToUpper(message.Data["room"].(string))
 					game = entities.FindGameByRoom(room)
 					if game == nil {
-						user.SendMessage("error", map[string]any{"message": "Room not found"})
+						user.Error("Room not found")
 					} else {
 						game.AddUser(user)
-						user.SendMessage("joined", map[string]any{"room": room})
+						user.SendMessage("joined", map[string]any{"room": room, "map": game.State.GameMap.Serialize()})
+						game.BroadcastSystem("info", fmt.Sprintf("%s joined the game", user.Username))
 					}
 				}
 			case "leave":
 				game.RemovePlayer(id)
 				user.SendMessage("left", map[string]any{})
+				game.BroadcastSystem("info", fmt.Sprintf("%s left the game", user.Username))
 			case "action":
 				if game == nil {
 					user.SendMessage("error", map[string]any{"message": "You are not in a game"})
@@ -145,6 +166,7 @@ func main() {
 					if err != nil {
 						user.Error(err.Error())
 					}
+					game.BroadcastSystem("info", fmt.Sprintf("%s switched teams", user.Username))
 				case "move":
 					if game.State.Phase != entities.Playing {
 						continue
@@ -165,16 +187,22 @@ func main() {
 				}
 			case "chat":
 				// TODO: Add support for commands
-				msg := map[string]any{
-					"message": message.Data["message"],
-					"from":    user.Username,
+				if game == nil {
+					user.Error("You are not in a game")
+					continue
+				}
+				msg := structs.Message{
+					Type: "chat",
+					Data: map[string]any{
+						"message": message.Data["message"],
+						"from":    user.Username,
+					},
 				}
 
-				for _, player := range game.Players {
-					player.User.SendMessage("chat", msg)
-				}
+				game.Broadcast(msg)
 			default:
 				fmt.Println("Unknown message type", message.Type)
+				user.Error("Unknown message type")
 			}
 		}
 
