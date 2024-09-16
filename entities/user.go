@@ -3,6 +3,7 @@ package entities
 import (
 	"encoding/json"
 	"online-game/structs"
+	"sync"
 
 	"github.com/gofiber/contrib/websocket"
 )
@@ -11,6 +12,7 @@ type User struct {
 	ID       string          `json:"id"`
 	Username string          `json:"username"`
 	C        *websocket.Conn `json:"-"`
+	mu       sync.Mutex
 }
 
 var Users = map[string]*User{}
@@ -26,6 +28,8 @@ func NewUser(c *websocket.Conn, id, username string) *User {
 }
 
 func (u *User) Send(msg []byte) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	return u.C.WriteMessage(websocket.TextMessage, msg)
 }
 
