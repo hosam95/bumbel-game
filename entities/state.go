@@ -1,31 +1,11 @@
 package entities
 
-import "math/rand"
+import (
+	"math/rand"
+)
 
 type Tile int
-
-const (
-	EmptyTile Tile = iota
-	TeamATile Tile = iota
-	TeamBTile Tile = iota
-	WallTile  Tile = iota
-)
-
 type GamePhase int
-
-const (
-	WaitingForPlayers GamePhase = iota
-	Playing           GamePhase = iota
-	GameOver          GamePhase = iota
-)
-
-const MAX_WALLS = 3
-const TEAM_A_COLOR = 0x6C946F
-const TEAM_B_COLOR = 0xDC0083
-
-func RandMN(m int, n int) int {
-	return m + rand.Intn(n-m)
-}
 
 type Map struct {
 	Width  int    `json:"width"`
@@ -42,6 +22,30 @@ type GameState struct {
 	Phase   GamePhase `json:"phase"`
 }
 
+const (
+	EmptyTile Tile = iota
+	TeamATile Tile = iota
+	TeamBTile Tile = iota
+	WallTile  Tile = iota
+)
+
+const (
+	WaitingForPlayers GamePhase = iota
+	Playing           GamePhase = iota
+	GameOver          GamePhase = iota
+)
+
+const (
+	MAP_DIVISIONS = 6
+	ROOM_PADDING  = 2
+	TEAM_A_COLOR  = 0x6C946F
+	TEAM_B_COLOR  = 0xDC0083
+)
+
+func RandMN(m int, n int) int {
+	return m + rand.Intn(n-m)
+}
+
 func NewGameState(width, height int) *GameState {
 	gameMap := Map{
 		Width:  width,
@@ -55,20 +59,7 @@ func NewGameState(width, height int) *GameState {
 	}
 
 	// walls
-	for i := 0; i < MAX_WALLS; i++ {
-		x := RandMN(1, width-2)
-		w := RandMN(1, width-x)
-		y := RandMN(1, height-2)
-		h := RandMN(1, height-y)
-
-		for j := y; j < y+h; j++ {
-			gameMap.Tiles[j*width+x] = WallTile
-		}
-
-		for j := x; j < x+w; j++ {
-			gameMap.Tiles[(y+h)*width+j] = WallTile
-		}
-	}
+	gameMap.generateWalls(MAP_DIVISIONS)
 
 	return &GameState{
 		GameMap: gameMap,
@@ -142,5 +133,45 @@ func (m *Map) Clear() {
 		if m.Tiles[i] != WallTile {
 			m.Tiles[i] = EmptyTile
 		}
+	}
+}
+
+func (m *Map) generateWalls(divisions int) {
+	m.generateWallsInRange(0, 0, m.Width-1, m.Height-1, divisions)
+}
+
+func (m *Map) generateWallsInRange(x1, y1, x2, y2 int, divisions int) {
+	// use BSP to generate walls
+	if divisions == 0 {
+		return
+	}
+
+	width := x2 - x1
+	height := y2 - y1
+
+	if width < 2*ROOM_PADDING+1 || height < 2*ROOM_PADDING+1 {
+		return
+	}
+
+	dir := RandMN(0, 2) // 0: horizontal, 1: vertical
+	px := RandMN(x1+ROOM_PADDING, x2-ROOM_PADDING)
+	py := RandMN(y1+ROOM_PADDING, y2-ROOM_PADDING)
+
+	if dir == 0 { // horizontal
+		// draw a horizontal line
+		for x := x1 + ROOM_PADDING; x <= x2-ROOM_PADDING; x++ {
+			m.Set(x, py, WallTile)
+		}
+		// divide the map into two parts
+		m.generateWallsInRange(x1, y1, x2, py-1, divisions-1)
+		m.generateWallsInRange(x1, py+1, x2, y2, divisions-1)
+	} else { // vertical
+		// draw a vertical line
+		for y := y1 + ROOM_PADDING; y <= y2-ROOM_PADDING; y++ {
+			m.Set(px, y, WallTile)
+		}
+		// divide the map into two parts
+		m.generateWallsInRange(x1, y1, px-1, y2, divisions-1)
+		m.generateWallsInRange(px+1, y1, x2, y2, divisions-1)
 	}
 }
