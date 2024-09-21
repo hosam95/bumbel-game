@@ -188,7 +188,11 @@ func (g *Game) Start(userId string) error {
 		return errors.New("need at least one player on each team")
 	}
 
-	g.State = *NewGameState(MapWidth, MapHeight)
+	if g.State.Phase == WaitingForPlayers { // First game
+		g.State.GameMap.Clear()
+	} else {
+		g.State = *NewGameState(MapWidth, MapHeight)
+	}
 	g.BroadcastTD("map", g.State.GameMap.Serialize())
 
 	g.State.Phase = Playing
