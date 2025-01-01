@@ -111,10 +111,14 @@ function GameScreen(root, handlers) {
     leaveBtn.textContent = "Leave Room";
     titleRow.appendChild(leaveBtn);
 
+    const chatBoxContainer = document.createElement("div");
+    chatBoxContainer.classList.add("chat-box-container");
+    chat.appendChild(chatBoxContainer);
+
     const chatBox = document.createElement("div");
     chatBox.id = "chatBox";
     chatBox.classList.add("chat-box");
-    chat.appendChild(chatBox);
+    chatBoxContainer.appendChild(chatBox);
 
     const chatSend = document.createElement("div");
     chatSend.classList.add("chat-send");
@@ -370,6 +374,8 @@ function appendMessage(from, message) {
     msg.classList.add("chat-text");
     chatMessage.appendChild(msg);
 
+    chatBox.scrollTop = chatBox.scrollHeight;
+
     return true;
 }
 
@@ -385,6 +391,8 @@ function appendSystemMessage(type, message) {
     msg.textContent = message;
     msg.classList.add("chat-text");
     chatMessage.appendChild(msg);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
 
     return true;
 }

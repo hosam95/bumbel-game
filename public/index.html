@@ -101,8 +101,14 @@
             padding: 0;
         }
 
-        .chat-box {
+        .chat-box-container {
             flex: 1;
+            position: relative;
+        }
+
+        .chat-box {
+            position: absolute;
+            inset: 0;
             overflow-y: auto;
         }
 
