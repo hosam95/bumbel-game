@@ -152,13 +152,13 @@ function GameScreen(root, handlers) {
         handlers.leaveRoom();
     });
 
-    appendSystemMessage("info", "Welcome to the game");
-    appendSystemMessage("success", "Your username is " + myData.username);
-    appendSystemMessage("info", "Use arrow keys to move");
-    appendSystemMessage("info", "Use Z to shoot");
-    appendSystemMessage("info", "Use T to change team");
-    appendSystemMessage("info", "Use Q to start the game");
-    appendSystemMessage("success", "Have fun!");
+    appendSystemMessage("SYS_MSG_INFO", "Welcome to the game");
+    appendSystemMessage("SYS_MSG_SUCCESS", "Your username is " + myData.username);
+    appendSystemMessage("SYS_MSG_INFO", "Use arrow keys to move");
+    appendSystemMessage("SYS_MSG_INFO", "Use Z to shoot");
+    appendSystemMessage("SYS_MSG_INFO", "Use T to change team");
+    appendSystemMessage("SYS_MSG_INFO", "Use Q to start the game");
+    appendSystemMessage("SYS_MSG_SUCCESS", "Have fun!");
 }
 
 let one = false;
@@ -379,12 +379,31 @@ function appendMessage(from, message) {
     return true;
 }
 
+function typeToString(type) {
+    switch (type) {
+        case "SYS_MSG_INFO": return "info";
+        case "SYS_MSG_ERROR": return "error";
+        case "SYS_MSG_SUCCESS": return "success";
+        default: return "unknown";
+    }
+}
+
+function usernameFromId(id) {
+    for (const player of game.state.players) {
+        if (player.user.id === id) {
+            return player.user.username;
+        }
+    }
+    return "Unknown";
+}
+
 function appendSystemMessage(type, message) {
     const chatBox = document.getElementById("chatBox");
     if (!chatBox) return false;
 
     const chatMessage = document.createElement("div");
-    chatMessage.classList.add("chat-message", type);
+    const t = typeToString(type);
+    chatMessage.classList.add("chat-message", t);
     chatBox.appendChild(chatMessage);
 
     const msg = document.createElement("span");
@@ -401,6 +420,7 @@ function appendSystemMessage(type, message) {
     const root = document.getElementById("root");
 
     let ws = new WebSocket("/ws");
+    ws.binaryType = "arraybuffer";
     setupWSListeners(ws, {
         joinRoom,
         hostRoom,
@@ -419,10 +439,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowUp":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "up",
                                     start: true,
                                 },
@@ -433,10 +452,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowDown":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "down",
                                     start: true,
                                 },
@@ -447,10 +465,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowLeft":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "left",
                                     start: true,
                                 },
@@ -461,10 +478,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowRight":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "right",
                                     start: true,
                                 },
@@ -475,9 +491,8 @@ function appendSystemMessage(type, message) {
                 case "KeyQ":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
-                                data: { action: "start" },
+                            encodeMsg({
+                                type: "MSG_START",
                             })
                         );
                     }
@@ -485,9 +500,8 @@ function appendSystemMessage(type, message) {
                 case "KeyZ":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
-                                data: { action: "shoot" },
+                            encodeMsg({
+                                type: "MSG_SHOOT",
                             })
                         );
                     }
@@ -495,9 +509,8 @@ function appendSystemMessage(type, message) {
                 case "KeyT":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
-                                data: { action: "team" },
+                            encodeMsg({
+                                type: "MSG_TEAM",
                             })
                         );
                     }
@@ -516,10 +529,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowUp":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "up",
                                     start: false,
                                 },
@@ -530,10 +542,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowDown":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "down",
                                     start: false,
                                 },
@@ -544,10 +555,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowLeft":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "left",
                                     start: false,
                                 },
@@ -558,10 +568,9 @@ function appendSystemMessage(type, message) {
                 case "ArrowRight":
                     {
                         ws.send(
-                            JSON.stringify({
-                                type: "action",
+                            encodeMsg({
+                                type: "MSG_MOVE",
                                 data: {
-                                    action: "move",
                                     direction: "right",
                                     start: false,
                                 },
@@ -575,28 +584,29 @@ function appendSystemMessage(type, message) {
 
     function joinRoom(roomInput) {
         const room = roomInput.value;
-        ws.send(
-            JSON.stringify({
-                type: "join",
-                data: { room },
-            })
-        );
+        const buf = encodeMsg({
+            type: "MSG_JOIN",
+            data: { room },
+        })
+        if (buf.error) {
+            alert(buf.error);
+            return;
+        }
+        ws.send(buf);
     }
 
     function hostRoom() {
         ws.send(
-            JSON.stringify({
-                type: "host",
-                data: {},
+            encodeMsg({
+                type: "MSG_HOST",
             })
         );
     }
 
     function leaveRoom() {
         ws.send(
-            JSON.stringify({
-                type: "leave",
-                data: {},
+            encodeMsg({
+                type: "MSG_LEAVE",
             })
         );
     }
@@ -612,12 +622,17 @@ function appendSystemMessage(type, message) {
     function chat(chatInput) {
         const message = chatInput.value;
         if (!message) return;
-        ws.send(
-            JSON.stringify({
-                type: "chat",
-                data: { message },
-            })
-        );
+        const buf = encodeMsg({
+            type: "MSG_CHAT",
+            data: { message },
+        });
+
+        if (buf.error) {
+            appendSystemMessage("SYS_MSG_ERROR", buf.error);
+            return;
+        }
+
+        ws.send(buf);
         chatInput.value = "";
     }
 
@@ -640,15 +655,15 @@ function setupWSListeners(ws, handlers, root) {
         console.log("Connected");
     });
     ws.addEventListener("message", (event) => {
-        const msg = JSON.parse(event.data);
+        const msg = decodeMsg(event.data);
         switch (msg.type) {
-            case "connected":
+            case "MSG_CNCT":
                 {
                     myData.id = msg.data.id;
                     myData.username = msg.data.username;
                 }
                 break;
-            case "hosted":
+            case "MSG_HOSTED":
                 {
                     GameScreen(root, {
                         leaveRoom,
@@ -657,7 +672,7 @@ function setupWSListeners(ws, handlers, root) {
                     });
                 }
                 break;
-            case "joined":
+            case "MSG_JOINED":
                 {
                     GameScreen(root, {
                         leaveRoom,
@@ -666,7 +681,7 @@ function setupWSListeners(ws, handlers, root) {
                     });
                 }
                 break;
-            case "state":
+            case "MSG_STATE":
                 {
                     if (!game.state || !rendering) {
                         game.state = msg.data;
@@ -678,21 +693,15 @@ function setupWSListeners(ws, handlers, root) {
 
                     if (activeScreen !== 1) {
                         console.error("should be unreachable");
-                        ws.send(
-                            JSON.stringify({
-                                type: "return",
-                                data: {},
-                            })
-                        );
                     }
                 }
                 break;
-            case "map":
+            case "MSG_MAP":
                 {
                     game.map = msg.data;
                 }
                 break;
-            case "left":
+            case "MSG_LEFT":
                 {
                     HomeScreen(root, {
                         joinRoom,
@@ -701,27 +710,27 @@ function setupWSListeners(ws, handlers, root) {
                     gameState = undefined;
                 }
                 break;
-            case "chat":
+            case "MSG_CHATTED":
                 {
-                    appendMessage(msg.data.from, msg.data.message);
+                    appendMessage(usernameFromId(msg.data.from), msg.data.message);
                 }
                 break;
-            case "error":
+            case "MSG_ERROR":
                 {
-                    if (!appendSystemMessage("error", msg.data.message)) {
+                    if (!appendSystemMessage("SYS_MSG_ERROR", msg.data.message)) {
                         // TODO: find a better way to display error messages
                         alert(msg.data.message);
                     }
                 }
                 break;
-            case "system":
+            case "MSG_SYSTEM":
                 {
-                    if (!appendSystemMessage(msg.data.type, msg.data.msg)) {
+                    if (!appendSystemMessage(msg.data.type, msg.data.message)) {
                         console.log(msg.data.type, msg.data.msg);
                     }
                 }
                 break;
-            case "attack":
+            case "MSG_SHOT":
                 {
                     const { x, y, state } = msg.data;
                     game.map.tiles[y * game.map.width + x] = state;

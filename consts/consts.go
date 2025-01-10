@@ -1,0 +1,8 @@
+package consts
+
+const (
+	MAP_DIVISIONS = 6
+	ROOM_PADDING  = 2
+	TEAM_A_COLOR  = 0x6C946F
+	TEAM_B_COLOR  = 0xDC0083
+)

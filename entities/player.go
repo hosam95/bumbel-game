@@ -1,45 +1,46 @@
 package entities
 
-import "math"
-
-type TeamID int
+import (
+	"math"
+	"online-game/types"
+)
 
 const (
-	TeamA TeamID = iota
-	TeamB TeamID = iota
+	TeamA types.TeamID = iota
+	TeamB types.TeamID = iota
 )
 
 type Player struct {
-	User *User   `json:"user"`
-	Team TeamID  `json:"team"`
-	X    float64 `json:"x"`
-	Y    float64 `json:"y"`
-	VX   int     `json:"vx"`
-	VY   int     `json:"vy"`
+	User *User        `json:"user"`
+	Team types.TeamID `json:"team"`
+	X    float64      `json:"x"`
+	Y    float64      `json:"y"`
+	VX   int          `json:"vx"`
+	VY   int          `json:"vy"`
 }
 type Players []*Player
 
-func (p *Player) Stringify() map[string]interface{} {
-	playerMap := map[string]interface{}{
-		"user": p.User,
-		"team": p.Team,
-		"x":    p.X,
-		"y":    p.Y,
-		"vx":   p.VX,
-		"vy":   p.VY,
+// TODO: name
+func (p Players) Foo() []types.StateMessagePlayer {
+	smps := make([]types.StateMessagePlayer, len(p))
+	for i, player := range p {
+		smps[i] = player.ToStateMessagePlayer()
 	}
-
-	return playerMap
+	return smps
 }
 
-func (p Players) Stringify() []map[string]interface{} {
-	pArr := make([]map[string]interface{}, len(p))
-
-	for i, player := range p {
-		pArr[i] = player.Stringify()
+func (p *Player) ToStateMessagePlayer() types.StateMessagePlayer {
+	return types.StateMessagePlayer{
+		Team: p.Team,
+		X:    p.X,
+		Y:    p.Y,
+		VX:   int32(p.VX),
+		VY:   int32(p.VY),
+		User: types.StateMessageUser{
+			ID:       p.User.ID,
+			Username: p.User.Username,
+		},
 	}
-
-	return pArr
 }
 
 func (p *Player) Move(direction string, start bool) {
@@ -71,11 +72,11 @@ func (p *Player) Move(direction string, start bool) {
 	p.VY = int(math.Min(math.Max(float64(p.VY), -1), 1))
 }
 
-func (p *Player) Update(gameMap *Map) {
+func (p *Player) Update(gameMap *types.GameMap) {
 	newX := p.X + float64(p.VX)*PlayerSpeed*float64(GameTick.Seconds())
 	newY := p.Y + float64(p.VY)*PlayerSpeed*float64(GameTick.Seconds())
 
-	tile, bottom, right, bottomRight := gameMap.GetAround(int(math.Floor(newX)), int(math.Floor(newY)))
+	tile, bottom, right, bottomRight := GetAround(gameMap, int(math.Floor(newX)), int(math.Floor(newY)))
 	cornerX := newX-math.Floor(newX) > 0
 	cornerY := newY-math.Floor(newY) > 0
 
