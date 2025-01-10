@@ -1,8 +1,8 @@
 package entities
 
 import (
-	"encoding/json"
-	"online-game/structs"
+	"online-game/msgs"
+	"online-game/types"
 	"sync"
 
 	"github.com/gofiber/contrib/websocket"
@@ -10,16 +10,15 @@ import (
 
 // User represents a connected player
 type User struct {
-	ID       string          `json:"id"`
-	Username string          `json:"username"`
-	C        *websocket.Conn `json:"-"`
+	ID       int16
+	Username string
+	C        *websocket.Conn
 	mu       sync.Mutex
 }
 
-var Users = map[string]*User{}
+var Users = map[int16]*User{}
 
-// NewUser creates a new user and adds it to the global map
-func NewUser(c *websocket.Conn, id, username string) *User {
+func NewUser(c *websocket.Conn, id int16, username string) *User {
 	user := &User{
 		ID:       id,
 		Username: username,
@@ -33,26 +32,24 @@ func NewUser(c *websocket.Conn, id, username string) *User {
 func (u *User) Send(msg []byte) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	return u.C.WriteMessage(websocket.TextMessage, msg)
+	return u.C.WriteMessage(websocket.BinaryMessage, msg)
 }
 
-// SendMessage sends a structured message to the user
-func (u *User) SendMessage(t string, data map[string]any) {
-	msg := structs.Message{
-		Type: t,
-		Data: data,
+func (u *User) SendMessage(msg msgs.ServerMessage) error {
+	buf, ok := msg.Buffer()
+	if !ok {
+		return nil
 	}
-	jsonMsg, _ := json.Marshal(msg)
-	u.Send(jsonMsg)
+	return u.C.WriteMessage(websocket.BinaryMessage, buf.Bytes())
 }
 
 // Error sends an error message to the user
 func (u *User) Error(message string) {
-	u.SendMessage("error", map[string]any{"message": message})
+	em := msgs.ErrorMessage{Message: message}
+	u.SendMessage(em)
 }
 
-// ToPlayer converts the user to a player for game participation
-func (u *User) ToPlayer(team TeamID, powerup *Wepon) *Player {
+func (u *User) ToPlayer(team types.TeamID, powerup *Wepon) *Player {
 	return &Player{
 		User:  u,
 		Team:  team,

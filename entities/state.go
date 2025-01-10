@@ -2,62 +2,32 @@ package entities
 
 import (
 	"math/rand"
-)
-
-// Tile represents a single tile in the game map
-type Tile int
-
-// GamePhase represents the current phase of the game
-type GamePhase int
-
-// Map represents the game map
-type Map struct {
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Tiles  []Tile `json:"tiles"`
-}
-
-// GameState represents the current state of the game
-type GameState struct {
-	GameMap Map       `json:"map"`
-	TeamA   int       `json:"teamA"`
-	TeamB   int       `json:"teamB"`
-	ScoreA  int       `json:"scoreA"`
-	ScoreB  int       `json:"scoreB"`
-	Phase   GamePhase `json:"phase"`
-}
-
-const (
-	EmptyTile Tile = iota
-	TeamATile Tile = iota
-	TeamBTile Tile = iota
-	WallTile  Tile = iota
+	"online-game/consts"
+	"online-game/types"
 )
 
 const (
-	WaitingForPlayers GamePhase = iota
-	Playing           GamePhase = iota
-	GameOver          GamePhase = iota
+	EmptyTile types.Tile = iota
+	TeamATile types.Tile = iota
+	TeamBTile types.Tile = iota
+	WallTile  types.Tile = iota
 )
 
 const (
-	MAP_DIVISIONS = 6
-	ROOM_PADDING  = 2
-	TEAM_A_COLOR  = 0x6C946F
-	TEAM_B_COLOR  = 0xDC0083
+	WaitingForPlayers types.GamePhase = iota
+	Playing           types.GamePhase = iota
+	GameOver          types.GamePhase = iota
 )
 
-// RandMN returns a random integer between m and n
 func RandMN(m int, n int) int {
 	return m + rand.Intn(n-m)
 }
 
-// NewGameState creates a new game state with an empty map
-func NewGameState(width, height int) *GameState {
-	gameMap := Map{
+func NewGameState(width, height int) *types.GameState {
+	gameMap := types.GameMap{
 		Width:  width,
 		Height: height,
-		Tiles:  make([]Tile, height*width),
+		Tiles:  make([]types.Tile, height*width),
 	}
 
 	// Fill the map with empty tiles
@@ -66,18 +36,17 @@ func NewGameState(width, height int) *GameState {
 	}
 
 	// walls
-	gameMap.generateWalls(MAP_DIVISIONS)
+	generateWalls(&gameMap, consts.MAP_DIVISIONS)
 
-	return &GameState{
+	return &types.GameState{
 		GameMap: gameMap,
-		TeamA:   TEAM_A_COLOR,
-		TeamB:   TEAM_B_COLOR,
+		TeamA:   consts.TEAM_A_COLOR,
+		TeamB:   consts.TEAM_B_COLOR,
 		Phase:   WaitingForPlayers,
 	}
 }
 
-// RandomGameState creates a new game state with a randomly filled map
-func RandomGameState(width, height int) *GameState {
+func RandomGameState(width, height int) *types.GameState {
 	gameState := NewGameState(width, height)
 
 	// Fill the map with random team tiles
@@ -94,28 +63,7 @@ func RandomGameState(width, height int) *GameState {
 	return gameState
 }
 
-// Stringify converts the game state to a map for serialization
-func (gs *GameState) Stringify() map[string]interface{} {
-	return map[string]interface{}{
-		"teamA":  gs.TeamA,
-		"teamB":  gs.TeamB,
-		"scoreA": gs.ScoreA,
-		"scoreB": gs.ScoreB,
-		"phase":  gs.Phase,
-	}
-}
-
-// Serialize converts the map to a map for serialization
-func (m *Map) Serialize() map[string]interface{} {
-	return map[string]interface{}{
-		"width":  m.Width,
-		"height": m.Height,
-		"tiles":  m.Tiles,
-	}
-}
-
-// Get gets the tile at the specified coordinates
-func (m *Map) Get(x, y int) Tile {
+func Get(m *types.GameMap, x, y int) types.Tile {
 	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
 		return WallTile
 	}
@@ -123,17 +71,15 @@ func (m *Map) Get(x, y int) Tile {
 	return m.Tiles[y*m.Width+x]
 }
 
-// GetAround gets the tiles around the specified coordinates
-func (m *Map) GetAround(x, y int) (tile Tile, bottom Tile, right Tile, bottomRight Tile) {
-	tile = m.Get(x, y)
-	bottom = m.Get(x, y+1)
-	right = m.Get(x+1, y)
-	bottomRight = m.Get(x+1, y+1)
+func GetAround(m *types.GameMap, x, y int) (tile, bottom, right, bottomRight types.Tile) {
+	tile = Get(m, x, y)
+	bottom = Get(m, x, y+1)
+	right = Get(m, x+1, y)
+	bottomRight = Get(m, x+1, y+1)
 	return
 }
 
-// Set sets the tile at the specified coordinates
-func (m *Map) Set(x, y int, tile Tile) {
+func Set(m *types.GameMap, x, y int, tile types.Tile) {
 	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
 		return
 	}
@@ -141,8 +87,7 @@ func (m *Map) Set(x, y int, tile Tile) {
 	m.Tiles[y*m.Width+x] = tile
 }
 
-// Clear clears the map of all non-wall tiles
-func (m *Map) Clear() {
+func Clear(m *types.GameMap) {
 	for i := range m.Tiles {
 		if m.Tiles[i] != WallTile {
 			m.Tiles[i] = EmptyTile
@@ -150,13 +95,11 @@ func (m *Map) Clear() {
 	}
 }
 
-// generateWalls generates walls in the map using BSP
-func (m *Map) generateWalls(divisions int) {
-	m.generateWallsInRange(0, 0, m.Width-1, m.Height-1, divisions)
+func generateWalls(m *types.GameMap, divisions int) {
+	generateWallsInRange(m, 0, 0, m.Width-1, m.Height-1, divisions)
 }
 
-// generateWallsInRange generates walls in a specified range using BSP
-func (m *Map) generateWallsInRange(x1, y1, x2, y2 int, divisions int) {
+func generateWallsInRange(m *types.GameMap, x1, y1, x2, y2 int, divisions int) {
 	// use BSP to generate walls
 	if divisions == 0 {
 		return
@@ -165,29 +108,29 @@ func (m *Map) generateWallsInRange(x1, y1, x2, y2 int, divisions int) {
 	width := x2 - x1
 	height := y2 - y1
 
-	if width < 2*ROOM_PADDING+1 || height < 2*ROOM_PADDING+1 {
+	if width < 2*consts.ROOM_PADDING+1 || height < 2*consts.ROOM_PADDING+1 {
 		return
 	}
 
 	dir := RandMN(0, 2) // 0: horizontal, 1: vertical
-	px := RandMN(x1+ROOM_PADDING, x2-ROOM_PADDING)
-	py := RandMN(y1+ROOM_PADDING, y2-ROOM_PADDING)
+	px := RandMN(x1+consts.ROOM_PADDING, x2-consts.ROOM_PADDING)
+	py := RandMN(y1+consts.ROOM_PADDING, y2-consts.ROOM_PADDING)
 
 	if dir == 0 { // horizontal
 		// draw a horizontal line
-		for x := x1 + ROOM_PADDING; x <= x2-ROOM_PADDING; x++ {
-			m.Set(x, py, WallTile)
+		for x := x1 + consts.ROOM_PADDING; x <= x2-consts.ROOM_PADDING; x++ {
+			Set(m, x, py, WallTile)
 		}
 		// divide the map into two parts
-		m.generateWallsInRange(x1, y1, x2, py-1, divisions-1)
-		m.generateWallsInRange(x1, py+1, x2, y2, divisions-1)
+		generateWallsInRange(m, x1, y1, x2, py-1, divisions-1)
+		generateWallsInRange(m, x1, py+1, x2, y2, divisions-1)
 	} else { // vertical
 		// draw a vertical line
-		for y := y1 + ROOM_PADDING; y <= y2-ROOM_PADDING; y++ {
-			m.Set(px, y, WallTile)
+		for y := y1 + consts.ROOM_PADDING; y <= y2-consts.ROOM_PADDING; y++ {
+			Set(m, px, y, WallTile)
 		}
 		// divide the map into two parts
-		m.generateWallsInRange(x1, y1, px-1, y2, divisions-1)
-		m.generateWallsInRange(px+1, y1, x2, y2, divisions-1)
+		generateWallsInRange(m, x1, y1, px-1, y2, divisions-1)
+		generateWallsInRange(m, px+1, y1, x2, y2, divisions-1)
 	}
 }

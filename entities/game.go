@@ -1,10 +1,11 @@
 package entities
 
 import (
-	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
-	"online-game/structs"
+	"online-game/msgs"
+	"online-game/types"
 	"time"
 )
 
@@ -21,22 +22,22 @@ const MapHeight = 27
 
 // Game represents a game session
 type Game struct {
-	Players Players   `json:"players"`
-	State   GameState `json:"state"`
-	Host    string    `json:"host"`
-	Room    string    `json:"room"`
-	LC      bool      `json:"-"` // large change
+	Players Players
+	State   types.GameState
+	Host    int16
+	Room    string
+	LC      bool // large change
 
-	Started   bool      `json:"started"`
-	StartedAt time.Time `json:"startedAt"`
+	Started   bool
+	StartedAt time.Time
 }
 
 var Games = []*Game{}
 
 type CellResult struct {
-	X     int  `json:"x"`
-	Y     int  `json:"y"`
-	State Tile `json:"state"`
+	X     int
+	Y     int
+	State types.Tile
 }
 
 // NewGame creates a new game and returns the room code
@@ -70,7 +71,7 @@ func FindGameByRoom(room string) *Game {
 }
 
 // FindUserInfo finds the game a user is in
-func FindUserInfo(userId string) *Game {
+func FindUserInfo(userId int16) *Game {
 	for _, game := range Games {
 		for _, player := range game.Players {
 			if player.User.ID == userId {
@@ -81,20 +82,6 @@ func FindUserInfo(userId string) *Game {
 	return nil
 }
 
-func (g *Game) Stringify() map[string]interface{} {
-	gameMap := map[string]interface{}{
-		"players":   g.Players.Stringify(),
-		"state":     g.State.Stringify(),
-		"host":      g.Host,
-		"room":      g.Room,
-		"started":   g.Started,
-		"startedAt": g.StartedAt,
-	}
-
-	return gameMap
-}
-
-// AddUser adds a user to the game
 func (g *Game) AddUser(user *User, powerup *Wepon) error {
 	if len(g.Players) >= MaxPlayers {
 		return errors.New("game is full")
@@ -103,7 +90,7 @@ func (g *Game) AddUser(user *User, powerup *Wepon) error {
 	if g.State.Phase != WaitingForPlayers {
 		return errors.New("game has already started")
 	}
-	var newTeam TeamID
+	var newTeam types.TeamID
 	if len(g.Players)&1 == 0 { // even number of players
 		newTeam = TeamA
 	} else {
@@ -117,8 +104,7 @@ func (g *Game) AddUser(user *User, powerup *Wepon) error {
 	return nil
 }
 
-// RemovePlayer removes a player from the game
-func (g *Game) RemovePlayer(userId string) {
+func (g *Game) RemovePlayer(userId int16) {
 	for i, p := range g.Players {
 		if p.User.ID == userId {
 			g.Players = append(g.Players[:i], g.Players[i+1:]...)
@@ -129,7 +115,7 @@ func (g *Game) RemovePlayer(userId string) {
 		g.Terminate()
 	} else if len(g.Players) < 2 {
 		g.State.Phase = WaitingForPlayers
-		g.State.GameMap.Clear()
+		Clear(&g.State.GameMap)
 		if g.Host == userId {
 			g.Host = g.Players[0].User.ID
 		}
@@ -137,8 +123,7 @@ func (g *Game) RemovePlayer(userId string) {
 	g.LC = true
 }
 
-// GetPlayer gets a player by user ID
-func (g *Game) GetPlayer(userId string) *Player {
+func (g *Game) GetPlayer(userId int16) *Player {
 	for _, player := range g.Players {
 		if player.User.ID == userId {
 			return player
@@ -147,8 +132,7 @@ func (g *Game) GetPlayer(userId string) *Player {
 	return nil
 }
 
-// SwitchTeams switches a player's team
-func (g *Game) SwitchTeams(userId string) error {
+func (g *Game) SwitchTeams(userId int16) error {
 	if g.State.Phase != WaitingForPlayers {
 		return errors.New("game has already started")
 	}
@@ -168,8 +152,7 @@ func (g *Game) SwitchTeams(userId string) error {
 	return nil
 }
 
-// Start starts the game
-func (g *Game) Start(userId string) error {
+func (g *Game) Start(userId int16) error {
 	if g.State.Phase == Playing {
 		return errors.New("game has already started")
 	}
@@ -198,11 +181,12 @@ func (g *Game) Start(userId string) error {
 	}
 
 	if g.State.Phase == WaitingForPlayers { // First game
-		g.State.GameMap.Clear()
+		Clear(&g.State.GameMap)
 	} else {
 		g.State = *NewGameState(MapWidth, MapHeight)
 	}
-	g.BroadcastTD("map", g.State.GameMap.Serialize())
+
+	g.BroadcastMap()
 
 	g.State.Phase = Playing
 	g.Started = true
@@ -212,7 +196,7 @@ func (g *Game) Start(userId string) error {
 		for {
 			player.X = rand.Float64() * float64(g.State.GameMap.Width)
 			player.Y = rand.Float64() * float64(g.State.GameMap.Height)
-			if g.State.GameMap.Get(int(player.X), int(player.Y)) != WallTile {
+			if Get(&g.State.GameMap, int(player.X), int(player.Y)) != WallTile {
 				break
 			}
 		}
@@ -221,16 +205,14 @@ func (g *Game) Start(userId string) error {
 	return nil
 }
 
-// MovePlayer moves a player in the game
-func (g *Game) MovePlayer(userId string, direction string, start bool) {
+func (g *Game) MovePlayer(userId int16, direction string, start bool) {
 	player := g.GetPlayer(userId)
 	if player != nil {
 		player.Move(direction, start)
 	}
 }
 
-// Shoot handles a player's shooting action
-func (g *Game) Shoot(userId string) (CellResult, error) {
+func (g *Game) Shoot(userId int16) (CellResult, error) {
 	player := g.GetPlayer(userId)
 	if player == nil {
 		return CellResult{}, errors.New("player not found")
@@ -239,7 +221,7 @@ func (g *Game) Shoot(userId string) (CellResult, error) {
 	x := int(player.X + 0.5)
 	y := int(player.Y + 0.5)
 
-	curr := g.State.GameMap.Get(x, y)
+	curr := Get(&g.State.GameMap, x, y)
 	if curr == WallTile {
 		return CellResult{}, errors.New("cannot paint wall")
 	}
@@ -250,7 +232,7 @@ func (g *Game) Shoot(userId string) (CellResult, error) {
 		g.State.ScoreB--
 	}
 
-	var newTile Tile
+	var newTile types.Tile
 	switch player.Team {
 	case TeamA:
 		newTile = TeamATile
@@ -259,7 +241,7 @@ func (g *Game) Shoot(userId string) (CellResult, error) {
 		newTile = TeamBTile
 		g.State.ScoreB++
 	}
-	g.State.GameMap.Set(x, y, newTile)
+	Set(&g.State.GameMap, x, y, newTile)
 
 	return CellResult{
 		X:     x,
@@ -290,7 +272,7 @@ func (g *Game) Finish() {
 	for _, player := range g.Players {
 		player.Reset()
 	}
-	g.BroadcastSystem("info", "Game over")
+	g.BroadcastSystem(msgs.SYS_MSG_INFO, "Game over")
 	g.LC = true
 }
 
@@ -304,9 +286,9 @@ func (g *Game) Terminate() {
 	}
 }
 
-// Broadcast broadcasts a message to all players
-func (g *Game) Broadcast(message structs.Message, exclude ...string) {
-	jsonMsg, _ := json.Marshal(message)
+func (g *Game) Broadcast(message msgs.ServerMessage, exclude ...int16) {
+	b, _ := message.Buffer()
+	buf := b.Bytes()
 
 PlayerLoop:
 	for _, player := range g.Players {
@@ -315,31 +297,45 @@ PlayerLoop:
 				continue PlayerLoop
 			}
 		}
-		player.User.Send(jsonMsg)
+		player.User.Send(buf)
 	}
 }
 
-// BroadcastTD broadcasts a typed message to all players
-func (g *Game) BroadcastTD(t string, d map[string]interface{}, exclude ...string) {
-	mapped := structs.Message{
-		Type: t,
-		Data: d,
-	}
-	g.Broadcast(mapped, exclude...)
+func (g *Game) BroadcastMap(exclude ...int16) {
+	g.Broadcast(msgs.MapMessage{
+		Map: g.State.GameMap,
+	})
 }
 
-// BroadcastState broadcasts the game state to all players
-func (g *Game) BroadcastState(exclude ...string) {
-	g.BroadcastTD("state", g.Stringify(), exclude...)
+func (g *Game) BroadcastState(exclude ...int16) {
+	// fmt.Printf("Started At: %v\r\nUnix: %d\r\n int32: %d\r\n", g.StartedAt, int32(g.StartedAt.Unix()), int32(g.StartedAt.Unix()))
+	g.Broadcast(msgs.StateMessage{
+		Host:      g.Host,
+		Room:      g.Room,
+		Started:   g.Started,
+		StartedAt: int32(g.StartedAt.Unix()),
+		State: types.StateMessageState{
+			TeamA:  int32(g.State.TeamA),
+			TeamB:  int32(g.State.TeamB),
+			ScoreA: int32(g.State.ScoreA),
+			ScoreB: int32(g.State.ScoreB),
+			Phase:  g.State.Phase,
+		},
+		Players: g.Players.Foo(),
+	})
 }
 
-// BroadcastSystem broadcasts a system message to all players
-func (g *Game) BroadcastSystem(msgType, msg string, exclude ...string) {
-	mapped := structs.Message{
-		Type: "system",
-		Data: map[string]interface{}{"msg": msg, "type": msgType},
+func (g *Game) BroadcastSystem(msgType uint8, msg string, exclude ...int16) {
+	mapped := msgs.SystemMessage{
+		Type:    msgs.SYS_MSG_INFO,
+		Message: msg,
 	}
-	jsonMsg, _ := json.Marshal(mapped)
+	b, ok := mapped.Buffer()
+
+	if !ok {
+		fmt.Println("Failed to marshal system message")
+	}
+	buf := b.Bytes()
 
 PlayerLoop:
 	for _, player := range g.Players {
@@ -348,6 +344,6 @@ PlayerLoop:
 				continue PlayerLoop
 			}
 		}
-		player.User.Send(jsonMsg)
+		player.User.Send(buf)
 	}
 }
