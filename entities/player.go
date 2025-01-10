@@ -10,12 +10,13 @@ const (
 )
 
 type Player struct {
-	User *User   `json:"user"`
-	Team TeamID  `json:"team"`
-	X    float64 `json:"x"`
-	Y    float64 `json:"y"`
-	VX   int     `json:"vx"`
-	VY   int     `json:"vy"`
+	User  *User   `json:"user"`
+	Team  TeamID  `json:"team"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	VX    int     `json:"vx"`
+	VY    int     `json:"vy"`
+	Wepon Wepon
 }
 type Players []*Player
 
@@ -42,6 +43,7 @@ func (p Players) Stringify() []map[string]interface{} {
 	return pArr
 }
 
+// Move updates the player's velocity based on the direction and start/stop flag
 func (p *Player) Move(direction string, start bool) {
 	if start {
 		switch direction {
@@ -71,6 +73,7 @@ func (p *Player) Move(direction string, start bool) {
 	p.VY = int(math.Min(math.Max(float64(p.VY), -1), 1))
 }
 
+// Update updates the player's position based on the game map
 func (p *Player) Update(gameMap *Map) {
 	newX := p.X + float64(p.VX)*PlayerSpeed*float64(GameTick.Seconds())
 	newY := p.Y + float64(p.VY)*PlayerSpeed*float64(GameTick.Seconds())
@@ -108,6 +111,7 @@ func (p *Player) Update(gameMap *Map) {
 	p.Y = newY
 }
 
+// Reset resets the player's velocity
 func (p *Player) Reset() {
 	p.VX = 0
 	p.VY = 0

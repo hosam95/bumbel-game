@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/contrib/websocket"
 )
 
+// User represents a connected player
 type User struct {
 	ID       string          `json:"id"`
 	Username string          `json:"username"`
@@ -17,6 +18,7 @@ type User struct {
 
 var Users = map[string]*User{}
 
+// NewUser creates a new user and adds it to the global map
 func NewUser(c *websocket.Conn, id, username string) *User {
 	user := &User{
 		ID:       id,
@@ -27,12 +29,14 @@ func NewUser(c *websocket.Conn, id, username string) *User {
 	return user
 }
 
+// Send sends a message to the user
 func (u *User) Send(msg []byte) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return u.C.WriteMessage(websocket.TextMessage, msg)
 }
 
+// SendMessage sends a structured message to the user
 func (u *User) SendMessage(t string, data map[string]any) {
 	msg := structs.Message{
 		Type: t,
@@ -42,17 +46,21 @@ func (u *User) SendMessage(t string, data map[string]any) {
 	u.Send(jsonMsg)
 }
 
+// Error sends an error message to the user
 func (u *User) Error(message string) {
 	u.SendMessage("error", map[string]any{"message": message})
 }
 
-func (u *User) ToPlayer(team TeamID) *Player {
+// ToPlayer converts the user to a player for game participation
+func (u *User) ToPlayer(team TeamID, powerup *Wepon) *Player {
 	return &Player{
-		User: u,
-		Team: team,
+		User:  u,
+		Team:  team,
+		Wepon: *powerup,
 	}
 }
 
+// Cleanup removes the user from the game and global map
 func (u *User) Cleanup() {
 	game := FindUserInfo(u.ID)
 	if game != nil {

@@ -4,15 +4,20 @@ import (
 	"math/rand"
 )
 
+// Tile represents a single tile in the game map
 type Tile int
+
+// GamePhase represents the current phase of the game
 type GamePhase int
 
+// Map represents the game map
 type Map struct {
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
 	Tiles  []Tile `json:"tiles"`
 }
 
+// GameState represents the current state of the game
 type GameState struct {
 	GameMap Map       `json:"map"`
 	TeamA   int       `json:"teamA"`
@@ -42,10 +47,12 @@ const (
 	TEAM_B_COLOR  = 0xDC0083
 )
 
+// RandMN returns a random integer between m and n
 func RandMN(m int, n int) int {
 	return m + rand.Intn(n-m)
 }
 
+// NewGameState creates a new game state with an empty map
 func NewGameState(width, height int) *GameState {
 	gameMap := Map{
 		Width:  width,
@@ -69,6 +76,7 @@ func NewGameState(width, height int) *GameState {
 	}
 }
 
+// RandomGameState creates a new game state with a randomly filled map
 func RandomGameState(width, height int) *GameState {
 	gameState := NewGameState(width, height)
 
@@ -86,6 +94,7 @@ func RandomGameState(width, height int) *GameState {
 	return gameState
 }
 
+// Stringify converts the game state to a map for serialization
 func (gs *GameState) Stringify() map[string]interface{} {
 	return map[string]interface{}{
 		"teamA":  gs.TeamA,
@@ -96,6 +105,7 @@ func (gs *GameState) Stringify() map[string]interface{} {
 	}
 }
 
+// Serialize converts the map to a map for serialization
 func (m *Map) Serialize() map[string]interface{} {
 	return map[string]interface{}{
 		"width":  m.Width,
@@ -104,6 +114,7 @@ func (m *Map) Serialize() map[string]interface{} {
 	}
 }
 
+// Get gets the tile at the specified coordinates
 func (m *Map) Get(x, y int) Tile {
 	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
 		return WallTile
@@ -112,6 +123,7 @@ func (m *Map) Get(x, y int) Tile {
 	return m.Tiles[y*m.Width+x]
 }
 
+// GetAround gets the tiles around the specified coordinates
 func (m *Map) GetAround(x, y int) (tile Tile, bottom Tile, right Tile, bottomRight Tile) {
 	tile = m.Get(x, y)
 	bottom = m.Get(x, y+1)
@@ -120,6 +132,7 @@ func (m *Map) GetAround(x, y int) (tile Tile, bottom Tile, right Tile, bottomRig
 	return
 }
 
+// Set sets the tile at the specified coordinates
 func (m *Map) Set(x, y int, tile Tile) {
 	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
 		return
@@ -128,6 +141,7 @@ func (m *Map) Set(x, y int, tile Tile) {
 	m.Tiles[y*m.Width+x] = tile
 }
 
+// Clear clears the map of all non-wall tiles
 func (m *Map) Clear() {
 	for i := range m.Tiles {
 		if m.Tiles[i] != WallTile {
@@ -136,10 +150,12 @@ func (m *Map) Clear() {
 	}
 }
 
+// generateWalls generates walls in the map using BSP
 func (m *Map) generateWalls(divisions int) {
 	m.generateWallsInRange(0, 0, m.Width-1, m.Height-1, divisions)
 }
 
+// generateWallsInRange generates walls in a specified range using BSP
 func (m *Map) generateWallsInRange(x1, y1, x2, y2 int, divisions int) {
 	// use BSP to generate walls
 	if divisions == 0 {

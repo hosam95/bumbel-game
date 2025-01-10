@@ -19,6 +19,7 @@ const PlayerSpeed = 10
 const MapWidth = 48
 const MapHeight = 27
 
+// Game represents a game session
 type Game struct {
 	Players Players   `json:"players"`
 	State   GameState `json:"state"`
@@ -38,12 +39,13 @@ type CellResult struct {
 	State Tile `json:"state"`
 }
 
-func NewGame(host *User) string {
+// NewGame creates a new game and returns the room code
+func NewGame(host *User, wepon *Wepon) string {
 	room := "" // a random string
 	for i := 0; i < 4; i++ {
 		room += string(rune(65 + rand.Intn(26)))
 	}
-	player := host.ToPlayer(TeamA)
+	player := host.ToPlayer(TeamA, wepon)
 	game := &Game{
 		Players: Players{
 			player,
@@ -57,6 +59,7 @@ func NewGame(host *User) string {
 	return room
 }
 
+// FindGameByRoom finds a game by its room code
 func FindGameByRoom(room string) *Game {
 	for _, game := range Games {
 		if game.Room == room {
@@ -66,6 +69,7 @@ func FindGameByRoom(room string) *Game {
 	return nil
 }
 
+// FindUserInfo finds the game a user is in
 func FindUserInfo(userId string) *Game {
 	for _, game := range Games {
 		for _, player := range game.Players {
@@ -90,7 +94,8 @@ func (g *Game) Stringify() map[string]interface{} {
 	return gameMap
 }
 
-func (g *Game) AddUser(user *User) error {
+// AddUser adds a user to the game
+func (g *Game) AddUser(user *User, powerup *Wepon) error {
 	if len(g.Players) >= MaxPlayers {
 		return errors.New("game is full")
 	}
@@ -105,13 +110,14 @@ func (g *Game) AddUser(user *User) error {
 		newTeam = TeamB
 	}
 
-	player := user.ToPlayer(newTeam)
+	player := user.ToPlayer(newTeam, powerup)
 	g.Players = append(g.Players, player)
 	g.LC = true
 
 	return nil
 }
 
+// RemovePlayer removes a player from the game
 func (g *Game) RemovePlayer(userId string) {
 	for i, p := range g.Players {
 		if p.User.ID == userId {
@@ -131,6 +137,7 @@ func (g *Game) RemovePlayer(userId string) {
 	g.LC = true
 }
 
+// GetPlayer gets a player by user ID
 func (g *Game) GetPlayer(userId string) *Player {
 	for _, player := range g.Players {
 		if player.User.ID == userId {
@@ -140,6 +147,7 @@ func (g *Game) GetPlayer(userId string) *Player {
 	return nil
 }
 
+// SwitchTeams switches a player's team
 func (g *Game) SwitchTeams(userId string) error {
 	if g.State.Phase != WaitingForPlayers {
 		return errors.New("game has already started")
@@ -160,6 +168,7 @@ func (g *Game) SwitchTeams(userId string) error {
 	return nil
 }
 
+// Start starts the game
 func (g *Game) Start(userId string) error {
 	if g.State.Phase == Playing {
 		return errors.New("game has already started")
@@ -212,6 +221,7 @@ func (g *Game) Start(userId string) error {
 	return nil
 }
 
+// MovePlayer moves a player in the game
 func (g *Game) MovePlayer(userId string, direction string, start bool) {
 	player := g.GetPlayer(userId)
 	if player != nil {
@@ -219,6 +229,7 @@ func (g *Game) MovePlayer(userId string, direction string, start bool) {
 	}
 }
 
+// Shoot handles a player's shooting action
 func (g *Game) Shoot(userId string) (CellResult, error) {
 	player := g.GetPlayer(userId)
 	if player == nil {
@@ -257,6 +268,7 @@ func (g *Game) Shoot(userId string) (CellResult, error) {
 	}, nil
 }
 
+// Update updates the game state
 func (g *Game) Update() {
 	if g.State.Phase != Playing {
 		return
@@ -271,6 +283,7 @@ func (g *Game) Update() {
 	}
 }
 
+// Finish finishes the game
 func (g *Game) Finish() {
 	g.State.Phase = GameOver
 	g.Started = false
@@ -281,6 +294,7 @@ func (g *Game) Finish() {
 	g.LC = true
 }
 
+// Terminate terminates the game
 func (g *Game) Terminate() {
 	for i, game := range Games {
 		if game == g {
@@ -290,6 +304,7 @@ func (g *Game) Terminate() {
 	}
 }
 
+// Broadcast broadcasts a message to all players
 func (g *Game) Broadcast(message structs.Message, exclude ...string) {
 	jsonMsg, _ := json.Marshal(message)
 
@@ -304,6 +319,7 @@ PlayerLoop:
 	}
 }
 
+// BroadcastTD broadcasts a typed message to all players
 func (g *Game) BroadcastTD(t string, d map[string]interface{}, exclude ...string) {
 	mapped := structs.Message{
 		Type: t,
@@ -312,10 +328,12 @@ func (g *Game) BroadcastTD(t string, d map[string]interface{}, exclude ...string
 	g.Broadcast(mapped, exclude...)
 }
 
+// BroadcastState broadcasts the game state to all players
 func (g *Game) BroadcastState(exclude ...string) {
 	g.BroadcastTD("state", g.Stringify(), exclude...)
 }
 
+// BroadcastSystem broadcasts a system message to all players
 func (g *Game) BroadcastSystem(msgType, msg string, exclude ...string) {
 	mapped := structs.Message{
 		Type: "system",
