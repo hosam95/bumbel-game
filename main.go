@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"online-game/entities"
 	"online-game/structs"
+	"online-game/wepons"
 	"strings"
 	"time"
 
@@ -80,10 +81,12 @@ func updateMap(game *entities.Game, cellX, cellY int, state entities.Tile) {
 func main() {
 	app := fiber.New()
 
+	// Serve static files from the ./public directory
 	app.Use(filesystem.New(filesystem.Config{
 		Root: http.Dir("./public"),
 	}))
 
+	// Start a goroutine to periodically update the game state and broadcast updates
 	go func() {
 		i := 0
 		for range time.Tick(entities.GameTick) {
@@ -96,6 +99,7 @@ func main() {
 		}
 	}()
 
+	// WebSocket upgrade middleware
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			return c.Next()
@@ -103,12 +107,14 @@ func main() {
 		return fiber.ErrUpgradeRequired
 	})
 
+	// WebSocket route to handle real-time communication with clients
 	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
 		id := fmt.Sprintf("%X", rand.Int63())
 		user := entities.NewUser(c, id, randomName())
 		user.SendMessage("connected", map[string]any{"id": id, "username": user.Username})
 
 		// websocket.Conn bindings https://pkg.go.dev/github.com/fasthttp/websocket?tab=doc#pkg-index
+		// Handle incoming messages from the client
 		for {
 			message := structs.Message{}
 			if err := c.ReadJSON(&message); err != nil {
@@ -123,7 +129,8 @@ func main() {
 				if game != nil {
 					user.Error("You are already in a game")
 				} else {
-					room := entities.NewGame(user)
+					var wepon entities.Wepon = &wepons.Grenade{}
+					room := entities.NewGame(user, &wepon)
 					user.SendMessage("hosted", map[string]any{"room": room})
 				}
 			case "join":
@@ -135,7 +142,8 @@ func main() {
 					if game == nil {
 						user.Error("Room not found")
 					} else {
-						err := game.AddUser(user)
+						var wepon entities.Wepon = &wepons.Grenade{}
+						err := game.AddUser(user, &wepon)
 						if err != nil {
 							user.Error(err.Error())
 						} else {
@@ -182,6 +190,25 @@ func main() {
 						user.Error(error.Error())
 					} else {
 						updateMap(game, cell.X, cell.Y, cell.State)
+					}
+				case "powerupPressed":
+					if game.State.Phase != entities.Playing {
+						continue
+					}
+					var player = game.GetPlayer(id)
+					_, err := player.Wepon.OnPress(game, player, message.Data)
+					if err != nil {
+						user.Error(err.Error())
+					}
+				case "powerupReleased":
+					if game.State.Phase != entities.Playing {
+						continue
+					}
+					var player = game.GetPlayer(id)
+					message.Data["updateMap"] = updateMap
+					_, err := player.Wepon.OnRelease(game, player, message.Data)
+					if err != nil {
+						user.Error(err.Error())
 					}
 				}
 			case "chat":
