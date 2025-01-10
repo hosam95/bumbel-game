@@ -11,12 +11,12 @@ const (
 )
 
 type Player struct {
-	User *User        `json:"user"`
-	Team types.TeamID `json:"team"`
-	X    float64      `json:"x"`
-	Y    float64      `json:"y"`
-	VX   int          `json:"vx"`
-	VY   int          `json:"vy"`
+	User *User
+	Team types.TeamID
+	X    float64
+	Y    float64
+	VX   int
+	VY   int
 }
 type Players []*Player
 

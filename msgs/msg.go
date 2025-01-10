@@ -11,7 +11,7 @@ type ServerMessage interface {
 }
 
 type GenericMessage struct {
-	Type uint8 `json:"type"`
+	Type uint8
 	Args []byte
 }
 

@@ -21,22 +21,22 @@ const MapWidth = 48
 const MapHeight = 27
 
 type Game struct {
-	Players Players         `json:"players"`
-	State   types.GameState `json:"state"`
-	Host    int16           `json:"host"`
-	Room    string          `json:"room"`
-	LC      bool            `json:"-"` // large change
+	Players Players
+	State   types.GameState
+	Host    int16
+	Room    string
+	LC      bool // large change
 
-	Started   bool      `json:"started"`
-	StartedAt time.Time `json:"startedAt"`
+	Started   bool
+	StartedAt time.Time
 }
 
 var Games = []*Game{}
 
 type CellResult struct {
-	X     int        `json:"x"`
-	Y     int        `json:"y"`
-	State types.Tile `json:"state"`
+	X     int
+	Y     int
+	State types.Tile
 }
 
 func NewGame(host *User) string {
