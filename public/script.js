@@ -1,12 +1,20 @@
 const game = { state: null, ctx: null, map: null };
 let activeScreen = 0; // 0: Home, 1: Game
 let lastTimestamp = 0;
-let rendering = false;
 const myData = {
     id: null,
     username: null,
 };
 let isServerUpdated = false;
+
+let rendering = false;
+let isAiming=false
+let myLocation = { x: 0, y: 0 };
+let targetLocation = { x: 0, y: 0 };
+let startBuildingAt = null;
+const rang_constA = 1
+const rang_constB = 2
+const max_cell_range = 5
 
 // CONSTANTS
 const playerSpeed = 10;
@@ -154,7 +162,7 @@ function GameScreen(root, handlers) {
 
     appendSystemMessage("info", "Welcome to the game");
     appendSystemMessage("success", "Your username is " + myData.username);
-    appendSystemMessage("info", "Use arrow keys to move");
+    appendSystemMessage("info", "Use arrow keys or WASD to move");
     appendSystemMessage("info", "Use Z to shoot");
     appendSystemMessage("info", "Use T to change team");
     appendSystemMessage("info", "Use Q to start the game");
@@ -321,6 +329,7 @@ function tick(ts) {
                 const color = player.team === 0 ? teamAColor : teamBColor;
 
                 if (player.user.id === myData.id) {
+                    myLocation = { x:(x + 0.5)*cellWidth, y:(y + 0.5)*cellHeight};
                     ctx.fillStyle = myData.id === gameState.host ? "#fcbe03" : "#ffffff";
                     ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                     ctx.fillStyle = color;
@@ -335,6 +344,17 @@ function tick(ts) {
                     ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 }
             }
+        }
+
+        // Render the aiming
+        if(isAiming){
+            ctx.beginPath();
+            ctx.strokeStyle = "gray";
+            ctx.moveTo(myLocation.x, myLocation.y);
+            ctx.lineTo(targetLocation.x, targetLocation.y);
+            ctx.stroke();  
+            
+            ctx.fillRect(targetLocation.x-5 , targetLocation.y-5, 10, 10);
         }
     } else {
         ctx.fillStyle = "#353535";
@@ -416,6 +436,7 @@ function appendSystemMessage(type, message) {
         canvas.addEventListener("keydown", (e) => {
             if (e.repeat) return;
             switch (e.code) {
+                case "KeyW":
                 case "ArrowUp":
                     {
                         ws.send(
@@ -430,6 +451,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "KeyS":
                 case "ArrowDown":
                     {
                         ws.send(
@@ -444,6 +466,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "KeyA":
                 case "ArrowLeft":
                     {
                         ws.send(
@@ -458,6 +481,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "KeyD":
                 case "ArrowRight":
                     {
                         ws.send(
@@ -482,6 +506,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "Space":
                 case "KeyZ":
                     {
                         ws.send(
@@ -513,6 +538,7 @@ function appendSystemMessage(type, message) {
         canvas.addEventListener("keyup", (e) => {
             if (e.repeat) return;
             switch (e.code) {
+                case "KeyW":
                 case "ArrowUp":
                     {
                         ws.send(
@@ -527,6 +553,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "KeyS":
                 case "ArrowDown":
                     {
                         ws.send(
@@ -541,6 +568,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "KeyA":
                 case "ArrowLeft":
                     {
                         ws.send(
@@ -555,6 +583,7 @@ function appendSystemMessage(type, message) {
                         );
                     }
                     break;
+                case "KeyD":
                 case "ArrowRight":
                     {
                         ws.send(
@@ -571,6 +600,78 @@ function appendSystemMessage(type, message) {
                     break;
             }
         });
+
+        canvas.addEventListener("mousedown",(e)=>{
+            if(!game.state || !game.state.started){
+                return;
+            }
+
+            ws.send(
+                JSON.stringify({
+                    type: "action",
+                    data: {
+                        action: "powerupPressed",
+                    },
+                })
+            );
+            /**@todo:vesioalize the aiming */
+            isAiming=true;
+            startBuildingAt = startBuildingAt?? Date.now();
+            projectMouseLocationToTarget()
+        })
+
+        canvas.addEventListener("mouseup",(e)=>{
+            if(!game.state || !game.state.started){
+                return;
+            }
+
+            let rect=canvas.getBoundingClientRect()
+            
+            const get_mouseX= ()=>{return e.clientX - (((rect.right-rect.left)*0.1)+rect.left)}
+            const get_mouseY= ()=>{ return e.clientY - (((rect.bottom-rect.top)*0.1)+rect.top)}
+            const get_mapWidth=()=>{ return ((rect.right-rect.left)*0.9)}
+            const get_mapHeight=()=>{return ((rect.bottom-rect.top)*0.9)}
+            
+            let cellX= (get_mouseX()/get_mapWidth())*game.map.width
+            let cellY= (get_mouseY()/get_mapHeight())*game.map.height;
+            
+            ws.send(
+                JSON.stringify({
+                    type: "action",
+                    data: {
+                        action: "powerupReleased",
+                        x: cellX,
+                        y:cellY,
+                    },
+                })
+            );
+
+            //stop rendering the aiming
+            isAiming=false;
+            startBuildingAt=null;
+
+            /**@todo: render a throwing action */
+        })
+
+        document.getElementById("root").addEventListener("mousemove",(e)=>{
+            if(!isAiming){
+                return;
+            }
+
+            let rect=canvas.getBoundingClientRect()
+            
+            const get_mouseX= ()=>{return e.clientX - (((rect.right-rect.left)*0.1)+rect.left)}
+            const get_mouseY= ()=>{ return e.clientY - (((rect.bottom-rect.top)*0.1)+rect.top)}
+            const get_mapWidth=()=>{ return ((rect.right-rect.left)*0.9)}
+            const get_mapHeight=()=>{return ((rect.bottom-rect.top)*0.9)}
+            
+            let cellX= (get_mouseX()/get_mapWidth())*game.map.width
+            let cellY= (get_mouseY()/get_mapHeight())*game.map.height;
+            
+            
+            targetLocation = { x: cellX, y: cellY };
+            projectMouseLocationToTarget();
+        })
     }
 
     function joinRoom(roomInput) {
@@ -762,4 +863,84 @@ function getAroundMap(map, x, y) {
     const right = getFromMap(map, x + 1, y);
     const bottomRight = getFromMap(map, x + 1, y + 1);
     return { tile, bottom, right, bottomRight };
+}
+
+function projectMouseLocationToTarget() {
+    let x= targetLocation.x
+    let y= targetLocation.y
+    
+    let mapWidth=game.map.width, mapHeight = game.map.height;
+
+    let cellWidth = 1600*0.9/mapWidth, cellHeight = 900*0.9/mapHeight
+    
+    let px= (myLocation.x- 1600*0.1)/cellWidth
+    let py= (myLocation.y- 900*0.1)/cellHeight
+
+    //calculate the range
+	let buildTime = (Date.now() - startBuildingAt)/1000
+
+	let range = (rang_constA * buildTime) + rang_constB
+
+	if (range > max_cell_range ) {
+		range = max_cell_range 
+	}
+    
+	//validate the x,y are within range
+	let distance = Math.sqrt(((px - x) * (px - x)) + ((py - y) * (py - y)))
+	if (distance > range){
+		//if not project the x,y on the max inRange coordinates in the same direction
+		let seta = Math.atan2((py + 0.5 - y), (px + 0.5 - x))
+        console.log("seta:",seta)
+		y = py - (range * Math.sin(seta)) 
+		x = px - (range * Math.cos(seta))
+	}
+
+    targetLocation = { x: x, y: y }
+
+	//if x,y are out of map, project them on the map edge
+	projectIntoMapIfOutside( mapWidth, mapHeight)
+
+    targetLocation = { x: (targetLocation.x * cellWidth) + (1600 * 0.1), y: (targetLocation.y * cellHeight) + (900 * 0.1) }
+}
+
+function projectIntoMapIfOutside( mapWidth, mapHeight) {
+	// the nonBorderCoordinate= samePlayerCoordinate + ( (sameTargetCoordinate - samePlayerCoordinate) * ( playersVerticalProjectionToBorder / playersProjectionToTargetLevelVerticalOnBorder ) );
+	// the BorderCoordinate= borderCoordinate;
+
+    let x= targetLocation.x
+    let y= targetLocation.y
+
+	if (x < 0) {
+		//if x<0, project the x,y on the x=0 line
+		x = 0 
+		y = myLocation.y + ((y - (myLocation.y )) * ((0 - (myLocation.x )) / (x - (myLocation.x ))))
+		if (y > 0 && y < mapHeight) {
+			targetLocation = { x: x, y: y }
+            return;
+		}
+	} else if (x > mapWidth) {
+		//if x>mapWidth, project the x,y on the x=mapWidth line
+		x = mapWidth 
+		y = myLocation.y + ((y - (myLocation.y)) * ((mapWidth - (myLocation.x )) / (x - (myLocation.x))))
+		if (y > 0 && y < mapHeight) {
+			targetLocation = { x: x, y: y }
+            return;
+		}
+	}
+
+	if (y < 0) {
+		//if y<0, project the x,y on the y=0 line
+		x = myLocation.x + 0.5 + ((x - (myLocation.x + 0.5)) * ((0 - (myLocation.y + 0.5)) / (y - (myLocation.y + 0.5))))
+		y = 0 + 0.5
+
+		targetLocation = { x: x, y: y }
+        return;
+	} else if (y > mapHeight) {
+		//if y>mapHeight, project the x,y on the y=mapHeight line
+		x = myLocation.x + 0.5 + ((x - (myLocation.x + 0.5)) * ((mapHeight - (myLocation.y + 0.5)) / (y - (myLocation.y + 0.5))))
+		y = mapHeight - 0.5
+
+		targetLocation = { x: x, y: y }
+        return;
+	}
 }
