@@ -116,7 +116,7 @@ func main() {
 				_, ok := gmsg.ParseHostMessage()
 				if !ok {
 					log.Println("[ERROR]: ParseHostMessage", gmsg)
-					// TODO: handle error properly
+					break
 				}
 				if game != nil {
 					user.Error("You are already in a game")
@@ -134,7 +134,7 @@ func main() {
 				jm, ok := gmsg.ParseJoinMessage()
 				if !ok {
 					log.Println("[ERROR]: ParseJoinedMessage", gmsg)
-					// TODO: handle error properly
+					break
 				}
 				room := strings.ToUpper(jm.Room)
 				game = entities.FindGameByRoom(room)

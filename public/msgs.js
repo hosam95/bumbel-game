@@ -74,7 +74,6 @@ function getString(data, length, state) {
 function decodeMsg(msg) {
     const type = new Uint8Array(msg, 0)[0];
     if (!type in MESSAGES) {
-        // TODO: handle error
         return null;
     }
 
@@ -187,9 +186,8 @@ function decodeMsg(msg) {
  */
 function encodeMsg(msg) {
     const type = MESSAGES[msg.type];
-    if (type == null) {
-        // TODO: handle error
-        return null;
+    if (!type) {
+        throw new Error("Unknown message type", msg.type)
     }
 
     let buf = null;

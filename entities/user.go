@@ -33,7 +33,6 @@ func (u *User) Send(msg []byte) error {
 	return u.C.WriteMessage(websocket.BinaryMessage, msg)
 }
 
-// TODO: make this accept ServerMessage interface
 func (u *User) SendMessage(msg msgs.ServerMessage) error {
 	buf, ok := msg.Buffer()
 	if !ok {
