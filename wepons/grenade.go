@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"online-game/entities"
+	"online-game/types"
 	"time"
 )
 
@@ -109,7 +110,7 @@ func (g *Grenade) OnRelease(game *entities.Game, player *entities.Player, data m
 				continue
 			}
 
-			curr := game.State.GameMap.Get(x, y)
+			curr := entities.Get(&game.State.GameMap, x, y)
 
 			//continu if the tile is a wall
 			if curr == entities.WallTile {
@@ -125,7 +126,7 @@ func (g *Grenade) OnRelease(game *entities.Game, player *entities.Player, data m
 			}
 
 			//get the tiles new team and increment the score of the new owner team
-			var newTile entities.Tile
+			var newTile types.Tile
 			switch player.Team {
 			case entities.TeamA:
 				newTile = entities.TeamATile
@@ -136,8 +137,8 @@ func (g *Grenade) OnRelease(game *entities.Game, player *entities.Player, data m
 			}
 
 			//paint the tile
-			game.State.GameMap.Set(x, y, newTile)
-			data["updateMap"].(func(game *entities.Game, cellX, cellY int, state entities.Tile))(game, x, y, newTile)
+			entities.Set(&game.State.GameMap, x, y, newTile)
+			data["updateMap"].(func(game *entities.Game, cellX, cellY int, state types.Tile))(game, x, y, newTile)
 		}
 	}
 
