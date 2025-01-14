@@ -1,14 +1,16 @@
 package wepons
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"online-game/entities"
+	"online-game/msgs"
 	"online-game/types"
 	"time"
 )
 
-const id = 1
+const id = entities.GrenadeId
 const name = "Grenade"
 const rang_constA = 1
 const rang_constB = 2
@@ -21,7 +23,7 @@ type Grenade struct {
 	startCoolDownAt time.Time
 }
 
-func (g *Grenade) Id() entities.WeponId {
+func (g *Grenade) Id() entities.WeaponId {
 	return id
 }
 
@@ -44,7 +46,7 @@ func (g *Grenade) Stringify() map[string]interface{} {
 	}
 }
 
-func (g *Grenade) OnPress(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
+func (g *Grenade) OnWeaponDown(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
 	//handle edge cases: (allredy building range, still cooling down)
 	if !g.startBuildingAt.Equal(time.Time{}) {
 		return nil, errors.New("allredy building range")
@@ -58,12 +60,12 @@ func (g *Grenade) OnPress(game *entities.Game, player *entities.Player, data map
 	return nil, nil
 }
 
-func (g *Grenade) Update(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
+func (g *Grenade) OnWeaponUpdate(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
 	//TODO: implement the update
 	return nil, nil
 }
 
-func (g *Grenade) OnRelease(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
+func (g *Grenade) OnWeaponUp(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
 	x := data["x"].(float64)
 	y := data["y"].(float64)
 	//validate cooldown state
@@ -187,4 +189,38 @@ func projectIntoMapIfOutside(player *entities.Player, x float64, y float64) (flo
 	}
 
 	return x, y
+}
+
+func (g *Grenade) ParseWeaponDownMessage(message msgs.GenericMessage) (map[string]interface{}, bool) {
+	if message.Type != msgs.MSG_WEAPONDOWN {
+		return map[string]interface{}{}, false
+	}
+
+	return map[string]interface{}{}, true
+}
+
+func (g *Grenade) ParseWeaponUpdateMessage(message msgs.GenericMessage) (map[string]interface{}, bool) {
+	if message.Type != msgs.MSG_WEAPONUPDATE {
+		return map[string]interface{}{}, false
+	}
+
+	return map[string]interface{}{}, true
+}
+
+func (g *Grenade) ParseWeaponUpMessage(message msgs.GenericMessage) (map[string]interface{}, bool) {
+	if message.Type != msgs.MSG_WEAPONUP {
+		return map[string]interface{}{}, false
+	}
+
+	args, ok := entities.CheckWeaponId(id, message.Args)
+	if !ok {
+		return map[string]interface{}{}, false
+	}
+
+	if len(args) != 16 {
+		return map[string]interface{}{}, false
+	}
+	var x float64 = math.Float64frombits(binary.LittleEndian.Uint64(args[:8]))
+	var y float64 = math.Float64frombits(binary.LittleEndian.Uint64(args[8:]))
+	return map[string]interface{}{"x": x, "y": y}, true
 }
