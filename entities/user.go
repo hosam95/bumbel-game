@@ -49,11 +49,11 @@ func (u *User) Error(message string) {
 	u.SendMessage(em)
 }
 
-func (u *User) ToPlayer(team types.TeamID, powerup *Wepon) *Player {
+func (u *User) ToPlayer(team types.TeamID, weapon *Weapon) *Player {
 	return &Player{
-		User:  u,
-		Team:  team,
-		Wepon: *powerup,
+		User:   u,
+		Team:   team,
+		Weapon: *weapon,
 	}
 }
 

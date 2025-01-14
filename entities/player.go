@@ -11,13 +11,13 @@ const (
 )
 
 type Player struct {
-	User  *User
-	Team  types.TeamID
-	X     float64
-	Y     float64
-	VX    int
-	VY    int
-	Wepon Wepon
+	User   *User
+	Team   types.TeamID
+	X      float64
+	Y      float64
+	VX     int
+	VY     int
+	Weapon Weapon
 }
 type Players []*Player
 

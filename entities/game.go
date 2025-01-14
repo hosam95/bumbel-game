@@ -41,7 +41,7 @@ type CellResult struct {
 }
 
 // NewGame creates a new game and returns the room code
-func NewGame(host *User, wepon *Wepon) string {
+func NewGame(host *User, wepon *Weapon) string {
 	room := "" // a random string
 	for i := 0; i < 4; i++ {
 		room += string(rune(65 + rand.Intn(26)))
@@ -82,7 +82,7 @@ func FindUserInfo(userId int16) *Game {
 	return nil
 }
 
-func (g *Game) AddUser(user *User, powerup *Wepon) error {
+func (g *Game) AddUser(user *User, weapon *Weapon) error {
 	if len(g.Players) >= MaxPlayers {
 		return errors.New("game is full")
 	}
@@ -97,7 +97,7 @@ func (g *Game) AddUser(user *User, powerup *Wepon) error {
 		newTeam = TeamB
 	}
 
-	player := user.ToPlayer(newTeam, powerup)
+	player := user.ToPlayer(newTeam, weapon)
 	g.Players = append(g.Players, player)
 	g.LC = true
 
