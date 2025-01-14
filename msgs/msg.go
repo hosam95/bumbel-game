@@ -86,28 +86,31 @@ type ErrorMessage struct {
 }
 
 const (
-	MSG_CNCT    uint8 = iota
-	MSG_HOST    uint8 = iota
-	MSG_HOSTED  uint8 = iota
-	MSG_JOIN    uint8 = iota
-	MSG_JOINED  uint8 = iota
-	MSG_LEAVE   uint8 = iota
-	MSG_LEFT    uint8 = iota
-	MSG_START   uint8 = iota
-	MSG_STARTED uint8 = iota
-	MSG_TEAM    uint8 = iota
-	MSG_TEAMED  uint8 = iota
-	MSG_MOVE    uint8 = iota
-	MSG_MOVED   uint8 = iota
-	MSG_SHOOT   uint8 = iota
-	MSG_SHOT    uint8 = iota
-	MSG_CHAT    uint8 = iota
-	MSG_CHATTED uint8 = iota
-	MSG_MAP     uint8 = iota
-	MSG_STATE   uint8 = iota
-	MSG_SYSTEM  uint8 = iota
-	MSG_ERROR   uint8 = iota
-	MSG_LEN     uint8 = iota
+	MSG_CNCT         uint8 = iota
+	MSG_HOST         uint8 = iota
+	MSG_HOSTED       uint8 = iota
+	MSG_JOIN         uint8 = iota
+	MSG_JOINED       uint8 = iota
+	MSG_LEAVE        uint8 = iota
+	MSG_LEFT         uint8 = iota
+	MSG_START        uint8 = iota
+	MSG_STARTED      uint8 = iota
+	MSG_TEAM         uint8 = iota
+	MSG_TEAMED       uint8 = iota
+	MSG_MOVE         uint8 = iota
+	MSG_MOVED        uint8 = iota
+	MSG_SHOOT        uint8 = iota
+	MSG_SHOT         uint8 = iota
+	MSG_CHAT         uint8 = iota
+	MSG_CHATTED      uint8 = iota
+	MSG_MAP          uint8 = iota
+	MSG_STATE        uint8 = iota
+	MSG_SYSTEM       uint8 = iota
+	MSG_ERROR        uint8 = iota
+	MSG_WEAPONDOWN   uint8 = iota
+	MSG_WEAPONUPDATE uint8 = iota
+	MSG_WEAPONUP     uint8 = iota
+	MSG_LEN          uint8 = iota
 )
 
 const (
