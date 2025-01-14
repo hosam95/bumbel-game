@@ -127,7 +127,7 @@ func main() {
 				if game != nil {
 					user.Error("You are already in a game")
 				} else {
-					var wepon entities.Wepon = &wepons.Grenade{}
+					var wepon entities.Weapon = &wepons.Grenade{}
 					room := entities.NewGame(user, &wepon)
 					hosted := msgs.HostedMessage{Room: room}
 					user.SendMessage(hosted)
@@ -148,7 +148,7 @@ func main() {
 				if game == nil {
 					user.Error("Room not found")
 				} else {
-					var wepon entities.Wepon = &wepons.Grenade{}
+					var wepon entities.Weapon = &wepons.Grenade{}
 					err := game.AddUser(user, &wepon)
 					if err != nil {
 						user.Error(err.Error())
@@ -247,22 +247,46 @@ func main() {
 				} else {
 					updateMap(game, cell.X, cell.Y, cell.State)
 				}
-			case "powerupPressed":
+			case msgs.MSG_WEAPONDOWN:
 				if game.State.Phase != entities.Playing {
 					continue
 				}
 				var player = game.GetPlayer(id)
-				_, err := player.Wepon.OnPress(game, player, message.Data)
+				var wepon = player.Weapon
+				message, ok := wepon.ParseWeaponDownMessage(gmsg)
+				if !ok {
+					log.Println("[ERROR]: ParseWeaponDownMessage (", wepon.Name(), ")", gmsg)
+				}
+				_, err := wepon.OnWeaponDown(game, player, message)
 				if err != nil {
 					user.Error(err.Error())
 				}
-			case "powerupReleased":
+			case msgs.MSG_WEAPONUPDATE:
 				if game.State.Phase != entities.Playing {
 					continue
 				}
 				var player = game.GetPlayer(id)
-				message.Data["updateMap"] = updateMap
-				_, err := player.Wepon.OnRelease(game, player, message.Data)
+				var wepon = player.Weapon
+				message, ok := wepon.ParseWeaponUpdateMessage(gmsg)
+				if !ok {
+					log.Println("[ERROR]: ParseWeaponUpdateMessage (", wepon.Name(), ")", gmsg)
+				}
+				_, err := wepon.OnWeaponUpdate(game, player, message)
+				if err != nil {
+					user.Error(err.Error())
+				}
+			case msgs.MSG_WEAPONUP:
+				if game.State.Phase != entities.Playing {
+					continue
+				}
+				var player = game.GetPlayer(id)
+				var wepon = player.Weapon
+				message, ok := wepon.ParseWeaponUpMessage(gmsg)
+				if !ok {
+					log.Println("[ERROR]: ParseWeaponUpMessage (", wepon.Name(), ")", gmsg)
+				}
+				message["updateMap"] = updateMap
+				_, err := wepon.OnWeaponUp(game, player, message)
 				if err != nil {
 					user.Error(err.Error())
 				}
