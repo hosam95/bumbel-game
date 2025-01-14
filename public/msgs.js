@@ -22,11 +22,19 @@ MESSAGES[MESSAGES["MSG_MAP"] = 17] = "MSG_MAP";
 MESSAGES[MESSAGES["MSG_STATE"] = 18] = "MSG_STATE";
 MESSAGES[MESSAGES["MSG_SYSTEM"] = 19] = "MSG_SYSTEM";
 MESSAGES[MESSAGES["MSG_ERROR"] = 20] = "MSG_ERROR";
-MESSAGES[MESSAGES["MSG_LEN"] = 21] = "MSG_LEN";
+MESSAGES[MESSAGES["MSG_WEAPONDOWN"] = 21] = "MSG_WEAPONDOWN";
+MESSAGES[MESSAGES["MSG_WEAPONUPDATE"] = 22] = "MSG_WEAPONUPDATE";
+MESSAGES[MESSAGES["MSG_WEAPONUP"] = 23] = "MSG_WEAPONUP";
+MESSAGES[MESSAGES["MSG_LEN"] = 24] = "MSG_LEN";
+
 
 // system messages
 const SYSTEM_MESSAGES = {};
 SYSTEM_MESSAGES[SYSTEM_MESSAGES["SYS_MSG_INFO"] = 0] = "SYS_MSG_INFO";
+
+// Weapons
+const WEAPONS = {};
+WEAPONS[WEAPONS["WEAPON_Grenade"] = 0] = "WEAPON_Grenade";
 
 // helpers
 function getUint8(data, state) {
@@ -72,7 +80,7 @@ function getString(data, length, state) {
  * @param {ArrayBuffer} msg 
  */
 function decodeMsg(msg) {
-    const type = new Uint8Array(msg, 0)[0];
+    const type = new Uint8Array(msg, 0)[0];   
     if (!type in MESSAGES) {
         return null;
     }
@@ -253,6 +261,26 @@ function encodeMsg(msg) {
             const msgBuf = new TextEncoder("utf-8").encode(msg.data.message);
             buf.set(msgBuf, 2);
             break;
+        case "MSG_WEAPONDOWN":
+            buf = new Uint8Array(1);
+            buf[0] = type;
+            break;
+        case "MSG_WEAPONUPDATE":
+            buf = new Uint8Array(1);
+            buf[0] = type;
+            break;
+        case "MSG_WEAPONUP":
+            buffer = new DataView(new ArrayBuffer(18));
+            // Combine x and y byte arrays
+            buffer.setUint8(0,type);
+            buffer.setUint8(1,WEAPONS["WEAPON_Grenade"]);
+            buffer.setFloat64(2,msg.data.x, true);
+            buffer.setFloat64(10,msg.data.y, true);
+            
+            // Concatenate the byte arrays
+            buf = new Uint8Array(buffer.buffer);
+            break;
+        
     }
 
     return buf;
