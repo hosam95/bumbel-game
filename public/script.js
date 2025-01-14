@@ -617,10 +617,7 @@ function appendSystemMessage(type, message) {
 
             ws.send(
                 encodeMsg({
-                    type: "action",
-                    data: {
-                        action: "powerupPressed",
-                    },
+                    type: "MSG_WEAPONDOWN",
                 })
             );
             /**@todo:vesioalize the aiming */
@@ -646,9 +643,8 @@ function appendSystemMessage(type, message) {
             
             ws.send(
                 encodeMsg({
-                    type: "action",
+                    type: "MSG_WEAPONUP",
                     data: {
-                        action: "powerupReleased",
                         x: cellX,
                         y:cellY,
                     },
@@ -899,7 +895,6 @@ function projectMouseLocationToTarget() {
 	if (distance > range){
 		//if not project the x,y on the max inRange coordinates in the same direction
 		let seta = Math.atan2((py + 0.5 - y), (px + 0.5 - x))
-        console.log("seta:",seta)
 		y = py - (range * Math.sin(seta)) 
 		x = px - (range * Math.cos(seta))
 	}
