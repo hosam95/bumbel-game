@@ -29,15 +29,18 @@ type StateMessageState struct {
 }
 
 type StateMessagePlayer struct {
-	Team TeamID
-	X    float64
-	Y    float64
-	VX   int32
-	VY   int32
-	User StateMessageUser
+	Team     TeamID
+	X        float64
+	Y        float64
+	VX       int32
+	VY       int32
+	User     StateMessageUser
+	WeaponId WeaponId
 }
 
 type StateMessageUser struct {
 	ID       int16
 	Username string
 }
+
+type WeaponId uint8

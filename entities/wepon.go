@@ -1,11 +1,12 @@
 package entities
 
-import "online-game/msgs"
-
-type WeaponId uint8
+import (
+	"online-game/msgs"
+	"online-game/types"
+)
 
 type Weapon interface {
-	Id() WeaponId
+	Id() types.WeaponId
 	Name() string
 	GetCooldown() int
 	GetCooldownLeft() float64
@@ -18,7 +19,7 @@ type Weapon interface {
 	Stringify() map[string]interface{}
 }
 
-func CheckWeaponId(id WeaponId, buf []byte) ([]byte, bool) {
+func CheckWeaponId(id types.WeaponId, buf []byte) ([]byte, bool) {
 	if len(buf) < 1 {
 		return buf, false
 	}
@@ -26,5 +27,5 @@ func CheckWeaponId(id WeaponId, buf []byte) ([]byte, bool) {
 }
 
 const (
-	GrenadeId WeaponId = iota
+	GrenadeId types.WeaponId = iota
 )
