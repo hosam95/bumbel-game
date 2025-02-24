@@ -85,32 +85,53 @@ type ErrorMessage struct {
 	Message string
 }
 
+type WeaponPressedMessage struct {
+	WeaponId types.WeaponId
+	PlayerId int16
+	Args     []byte
+}
+
+type WeaponUpdatedMessage struct {
+	WeaponId types.WeaponId
+	PlayerId int16
+	Args     []byte
+}
+
+type WeaponReleasedMessage struct {
+	WeaponId types.WeaponId
+	PlayerId int16
+	Args     []byte
+}
+
 const (
-	MSG_CNCT         uint8 = iota
-	MSG_HOST         uint8 = iota
-	MSG_HOSTED       uint8 = iota
-	MSG_JOIN         uint8 = iota
-	MSG_JOINED       uint8 = iota
-	MSG_LEAVE        uint8 = iota
-	MSG_LEFT         uint8 = iota
-	MSG_START        uint8 = iota
-	MSG_STARTED      uint8 = iota
-	MSG_TEAM         uint8 = iota
-	MSG_TEAMED       uint8 = iota
-	MSG_MOVE         uint8 = iota
-	MSG_MOVED        uint8 = iota
-	MSG_SHOOT        uint8 = iota
-	MSG_SHOT         uint8 = iota
-	MSG_CHAT         uint8 = iota
-	MSG_CHATTED      uint8 = iota
-	MSG_MAP          uint8 = iota
-	MSG_STATE        uint8 = iota
-	MSG_SYSTEM       uint8 = iota
-	MSG_ERROR        uint8 = iota
-	MSG_WEAPONDOWN   uint8 = iota
-	MSG_WEAPONUPDATE uint8 = iota
-	MSG_WEAPONUP     uint8 = iota
-	MSG_LEN          uint8 = iota
+	MSG_CNCT           uint8 = iota
+	MSG_HOST           uint8 = iota
+	MSG_HOSTED         uint8 = iota
+	MSG_JOIN           uint8 = iota
+	MSG_JOINED         uint8 = iota
+	MSG_LEAVE          uint8 = iota
+	MSG_LEFT           uint8 = iota
+	MSG_START          uint8 = iota
+	MSG_STARTED        uint8 = iota
+	MSG_TEAM           uint8 = iota
+	MSG_TEAMED         uint8 = iota
+	MSG_MOVE           uint8 = iota
+	MSG_MOVED          uint8 = iota
+	MSG_SHOOT          uint8 = iota
+	MSG_SHOT           uint8 = iota
+	MSG_CHAT           uint8 = iota
+	MSG_CHATTED        uint8 = iota
+	MSG_MAP            uint8 = iota
+	MSG_STATE          uint8 = iota
+	MSG_SYSTEM         uint8 = iota
+	MSG_ERROR          uint8 = iota
+	MSG_WEAPONDOWN     uint8 = iota
+	MSG_WEAPONUPDATE   uint8 = iota
+	MSG_WEAPONUP       uint8 = iota
+	MSG_WEAPONPRESSED  uint8 = iota
+	MSG_WEAPONUPDATED  uint8 = iota
+	MSG_WEAPONRELEASED uint8 = iota
+	MSG_LEN            uint8 = iota
 )
 
 const (
@@ -350,6 +371,7 @@ func (sm StateMessage) Buffer() (*bytes.Buffer, bool) {
 		binary.Write(buf, binary.LittleEndian, player.Y)
 		binary.Write(buf, binary.LittleEndian, player.VX)
 		binary.Write(buf, binary.LittleEndian, player.VY)
+		binary.Write(buf, binary.LittleEndian, player.WeaponId)
 		binary.Write(buf, binary.LittleEndian, uint8(len(player.User.Username)))
 		buf.WriteString(player.User.Username)
 	}
@@ -384,6 +406,42 @@ func (em ErrorMessage) Buffer() (*bytes.Buffer, bool) {
 	buf.WriteByte(MSG_ERROR)
 	buf.WriteByte(uint8(sz))
 	buf.WriteString(em.Message)
+
+	return buf, true
+}
+
+func (wpm WeaponPressedMessage) Buffer() (*bytes.Buffer, bool) {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(MSG_WEAPONPRESSED)
+	binary.Write(buf, binary.LittleEndian, wpm.WeaponId)
+	binary.Write(buf, binary.LittleEndian, wpm.PlayerId)
+	binary.Write(buf, binary.LittleEndian, uint8(len(wpm.Args)))
+	buf.Write(wpm.Args)
+
+	return buf, true
+}
+
+func (wpm WeaponUpdatedMessage) Buffer() (*bytes.Buffer, bool) {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(MSG_WEAPONUPDATED)
+	binary.Write(buf, binary.LittleEndian, wpm.WeaponId)
+	binary.Write(buf, binary.LittleEndian, wpm.PlayerId)
+	binary.Write(buf, binary.LittleEndian, uint8(len(wpm.Args)))
+	buf.Write(wpm.Args)
+
+	return buf, true
+}
+
+func (wpm WeaponReleasedMessage) Buffer() (*bytes.Buffer, bool) {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(MSG_WEAPONRELEASED)
+	binary.Write(buf, binary.LittleEndian, wpm.WeaponId)
+	binary.Write(buf, binary.LittleEndian, wpm.PlayerId)
+	binary.Write(buf, binary.LittleEndian, uint8(len(wpm.Args)))
+	buf.Write(wpm.Args)
 
 	return buf, true
 }
