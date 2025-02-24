@@ -1,6 +1,7 @@
 package wepons
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"math"
@@ -23,7 +24,7 @@ type Grenade struct {
 	startCoolDownAt time.Time
 }
 
-func (g *Grenade) Id() entities.WeaponId {
+func (g *Grenade) Id() types.WeaponId {
 	return id
 }
 
@@ -57,11 +58,37 @@ func (g *Grenade) OnWeaponDown(game *entities.Game, player *entities.Player, dat
 
 	//save time
 	g.startBuildingAt = time.Now()
+
+	//notify the other players
+	setaBuf := &bytes.Buffer{}
+	binary.Write(setaBuf, binary.LittleEndian, float64(data["seta"].(float64)))
+	msg := msgs.WeaponPressedMessage{
+		WeaponId: id,
+		PlayerId: player.User.ID,
+		Args:     setaBuf.Bytes(),
+	}
+	buf, _ := msg.Buffer()
+	by := buf.Bytes()
+
+	data["notifyOtherPlayers"].(func(game *entities.Game, id int16, msg []byte))(game, player.User.ID, by)
+
 	return nil, nil
 }
 
 func (g *Grenade) OnWeaponUpdate(game *entities.Game, player *entities.Player, data map[string]interface{}) (map[string]interface{}, error) {
-	//TODO: implement the update
+	//notify the other players
+	setaBuf := &bytes.Buffer{}
+	binary.Write(setaBuf, binary.LittleEndian, float64(data["seta"].(float64)))
+	msg := msgs.WeaponUpdatedMessage{
+		WeaponId: id,
+		PlayerId: player.User.ID,
+		Args:     setaBuf.Bytes(),
+	}
+	buf, _ := msg.Buffer()
+	by := buf.Bytes()
+
+	data["notifyOtherPlayers"].(func(game *entities.Game, id int16, msg []byte))(game, player.User.ID, by)
+
 	return nil, nil
 }
 
@@ -86,11 +113,13 @@ func (g *Grenade) OnWeaponUp(game *entities.Game, player *entities.Player, data 
 		Range = max_range
 	}
 
+	//calculate seta any way to notify other payers
+	seta := math.Atan2((player.Y + 0.5 - y), (player.X + 0.5 - x))
+
 	//validate the x,y are within range
 	distance := math.Sqrt(((player.X - x) * (player.X - x)) + ((player.Y - y) * (player.Y - y)))
 	if distance > float64(Range) {
 		//if not project the x,y on the max inRange coordinates in the same direction
-		seta := math.Atan2((player.Y + 0.5 - y), (player.X + 0.5 - x))
 		y = player.Y - (float64(Range) * math.Sin(seta))
 		x = player.X - (float64(Range) * math.Cos(seta))
 	}
@@ -140,7 +169,6 @@ func (g *Grenade) OnWeaponUp(game *entities.Game, player *entities.Player, data 
 
 			//paint the tile
 			entities.Set(&game.State.GameMap, x, y, newTile)
-			data["updateMap"].(func(game *entities.Game, cellX, cellY int, state types.Tile))(game, x, y, newTile)
 		}
 	}
 
@@ -149,6 +177,19 @@ func (g *Grenade) OnWeaponUp(game *entities.Game, player *entities.Player, data 
 
 	//start the cooldouwn
 	g.startCoolDownAt = time.Now()
+
+	xyBuf := &bytes.Buffer{}
+	binary.Write(xyBuf, binary.LittleEndian, x)
+	binary.Write(xyBuf, binary.LittleEndian, y)
+	msg := msgs.WeaponReleasedMessage{
+		WeaponId: id,
+		PlayerId: player.User.ID,
+		Args:     xyBuf.Bytes(),
+	}
+	buf, _ := msg.Buffer()
+
+	data["notifyOtherPlayers"].(func(game *entities.Game, id int16, msg []byte))(game, player.User.ID, buf.Bytes())
+	player.User.Send(buf.Bytes())
 
 	return nil, nil
 }
@@ -196,7 +237,16 @@ func (g *Grenade) ParseWeaponDownMessage(message msgs.GenericMessage) (map[strin
 		return map[string]interface{}{}, false
 	}
 
-	return map[string]interface{}{}, true
+	args, ok := entities.CheckWeaponId(id, message.Args)
+	if !ok {
+		return map[string]interface{}{}, false
+	}
+
+	if len(args) != 8 {
+		return map[string]interface{}{}, false
+	}
+	var seta float64 = math.Float64frombits(binary.LittleEndian.Uint64(args[:8]))
+	return map[string]interface{}{"seta": seta}, true
 }
 
 func (g *Grenade) ParseWeaponUpdateMessage(message msgs.GenericMessage) (map[string]interface{}, bool) {
@@ -204,7 +254,16 @@ func (g *Grenade) ParseWeaponUpdateMessage(message msgs.GenericMessage) (map[str
 		return map[string]interface{}{}, false
 	}
 
-	return map[string]interface{}{}, true
+	args, ok := entities.CheckWeaponId(id, message.Args)
+	if !ok {
+		return map[string]interface{}{}, false
+	}
+
+	if len(args) != 8 {
+		return map[string]interface{}{}, false
+	}
+	var seta float64 = math.Float64frombits(binary.LittleEndian.Uint64(args[:8]))
+	return map[string]interface{}{"seta": seta}, true
 }
 
 func (g *Grenade) ParseWeaponUpMessage(message msgs.GenericMessage) (map[string]interface{}, bool) {
