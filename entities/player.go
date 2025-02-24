@@ -41,6 +41,7 @@ func (p *Player) ToStateMessagePlayer() types.StateMessagePlayer {
 			ID:       p.User.ID,
 			Username: p.User.Username,
 		},
+		WeaponId: p.Weapon.Id(),
 	}
 }
 
