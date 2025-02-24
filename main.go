@@ -257,6 +257,7 @@ func main() {
 				if !ok {
 					log.Println("[ERROR]: ParseWeaponDownMessage (", wepon.Name(), ")", gmsg)
 				}
+				message["notifyOtherPlayers"] = notifyOtherPlayers
 				_, err := wepon.OnWeaponDown(game, player, message)
 				if err != nil {
 					user.Error(err.Error())
@@ -271,6 +272,7 @@ func main() {
 				if !ok {
 					log.Println("[ERROR]: ParseWeaponUpdateMessage (", wepon.Name(), ")", gmsg)
 				}
+				message["notifyOtherPlayers"] = notifyOtherPlayers
 				_, err := wepon.OnWeaponUpdate(game, player, message)
 				if err != nil {
 					user.Error(err.Error())
@@ -285,7 +287,7 @@ func main() {
 				if !ok {
 					log.Println("[ERROR]: ParseWeaponUpMessage (", wepon.Name(), ")", gmsg)
 				}
-				message["updateMap"] = updateMap
+				message["notifyOtherPlayers"] = notifyOtherPlayers
 				_, err := wepon.OnWeaponUp(game, player, message)
 				if err != nil {
 					user.Error(err.Error())
@@ -318,4 +320,12 @@ func main() {
 	}))
 
 	log.Fatal(app.Listen(":3000"))
+}
+
+func notifyOtherPlayers(game *entities.Game, id int16, msg []byte) {
+	for _, p := range game.Players {
+		if p.User.ID != id {
+			p.User.Send(msg)
+		}
+	}
 }
