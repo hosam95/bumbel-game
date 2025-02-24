@@ -8,9 +8,10 @@ const myData = {
 let isServerUpdated = false;
 
 let rendering = false;
-let isAiming=false
-let myLocation = { x: 0, y: 0 };
-let targetLocation = { x: 0, y: 0 };
+let amAiming=false
+let mouseLocation = {x:0,y:0};
+let myLocation = { x: 0, y: 0 }; //the player coordinates from the topLeft of the canvas in ~pixels;
+let targetLocation = { x: 0, y: 0 }; //the target coordinates from the topLeft of the canvas in ~pixels;
 let startBuildingAt = null;
 const rang_constA = 1
 const rang_constB = 2
@@ -343,11 +344,13 @@ function tick(ts) {
                     ctx.fillStyle = color;
                     ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 }
+                player.weapon.render(ctx);
             }
         }
 
-        // Render the aiming
-        if(isAiming){
+        // Render my aiming
+        if(amAiming){
+            updateTargetLocation();
             ctx.beginPath();
             ctx.strokeStyle = "gray";
             ctx.moveTo(myLocation.x, myLocation.y);
@@ -610,37 +613,51 @@ function appendSystemMessage(type, message) {
             }
         });
 
-        canvas.addEventListener("mousedown",(e)=>{
-            if(!game.state || !game.state.started){
-                return;
-            }
-
-            ws.send(
-                encodeMsg({
-                    type: "MSG_WEAPONDOWN",
-                })
-            );
-            /**@todo:vesioalize the aiming */
-            isAiming=true;
-            startBuildingAt = startBuildingAt?? Date.now();
-            projectMouseLocationToTarget()
-        })
-
-        canvas.addEventListener("mouseup",(e)=>{
+        document.getElementById("root").addEventListener("mousedown",(e)=>{
             if(!game.state || !game.state.started){
                 return;
             }
 
             let rect=canvas.getBoundingClientRect()
             
-            const get_mouseX= ()=>{return e.clientX - (((rect.right-rect.left)*0.1)+rect.left)}
-            const get_mouseY= ()=>{ return e.clientY - (((rect.bottom-rect.top)*0.1)+rect.top)}
-            const get_mapWidth=()=>{ return ((rect.right-rect.left)*0.9)}
-            const get_mapHeight=()=>{return ((rect.bottom-rect.top)*0.9)}
+            //calculate the maouse location relative to the canvas in pixel units
+            let mouseX= (e.clientX - (rect.left))*(1600/rect.width)
+            let mouseY= (e.clientY - (rect.top))*(900/rect.height)
+            mouseLocation={x:mouseX,y:mouseY}
+
+            let targetInfo = getTargetInfo(mouseX,mouseY)
             
-            let cellX= (get_mouseX()/get_mapWidth())*game.map.width
-            let cellY= (get_mouseY()/get_mapHeight())*game.map.height;
+            amAiming=true;
+            startBuildingAt = startBuildingAt?? Date.now();
+            targetLocation = { x: targetInfo.x, y: targetInfo.y };
+         
+            ws.send(
+                encodeMsg({
+                    type: "MSG_WEAPONDOWN",
+                    data: {
+                        seta: targetInfo.seta
+                    }
+                })
+            );
+        })
+
+        document.getElementById("root").addEventListener("mouseup",(e)=>{
+            if(!game.state || !game.state.started){
+                return;
+            }
+
+            let rect=canvas.getBoundingClientRect()
             
+            //calculate the maouse location relative to the canvas in pixel units
+            let mouseX= (e.clientX - (rect.left))*(1600/rect.width)
+            let mouseY= (e.clientY - (rect.top))*(900/rect.height)
+            let targetInfo = getTargetInfo(mouseX,mouseY)
+            
+            let coordinates = canvasPixelToMapCell(targetInfo.x,targetInfo.y)
+            
+            let cellX= coordinates.x
+            let cellY= coordinates.y
+
             ws.send(
                 encodeMsg({
                     type: "MSG_WEAPONUP",
@@ -652,30 +669,36 @@ function appendSystemMessage(type, message) {
             );
 
             //stop rendering the aiming
-            isAiming=false;
+            amAiming=false;
             startBuildingAt=null;
 
             /**@todo: render a throwing action */
         })
 
         document.getElementById("root").addEventListener("mousemove",(e)=>{
-            if(!isAiming){
+            if(!amAiming){
                 return;
             }
 
             let rect=canvas.getBoundingClientRect()
             
-            const get_mouseX= ()=>{return e.clientX - (((rect.right-rect.left)*0.1)+rect.left)}
-            const get_mouseY= ()=>{ return e.clientY - (((rect.bottom-rect.top)*0.1)+rect.top)}
-            const get_mapWidth=()=>{ return ((rect.right-rect.left)*0.9)}
-            const get_mapHeight=()=>{return ((rect.bottom-rect.top)*0.9)}
+            //calculate the maouse location relative to the canvas in pixel units
+            let mouseX= (e.clientX - (rect.left))*(1600/rect.width)
+            let mouseY= (e.clientY - (rect.top))*(900/rect.height)
+
+            mouseLocation={x:mouseX,y:mouseY}
+
+            let targetInfo = getTargetInfo(mouseX,mouseY)
+            targetLocation = { x: targetInfo.x, y: targetInfo.y };
+            ws.send(
+                encodeMsg({
+                    type: "MSG_WEAPONUPDATE",
+                    data: {
+                        seta: targetInfo.seta
+                    },
+                })
+            );
             
-            let cellX= (get_mouseX()/get_mapWidth())*game.map.width
-            let cellY= (get_mouseY()/get_mapHeight())*game.map.height;
-            
-            
-            targetLocation = { x: cellX, y: cellY };
-            projectMouseLocationToTarget();
         })
     }
 
@@ -833,6 +856,12 @@ function setupWSListeners(ws, handlers, root) {
                     game.map.tiles[y * game.map.width + x] = state;
                 }
                 break;
+            case "MSG_WEAPONPRESSED":
+                break;
+            case "MSG_WEAPONUPDATED":
+                break;
+            case "MSG_WEAPONRELEASED":
+                break;
             default: {
                 console.error("Unknown message type:", msg.type);
             }
@@ -870,81 +899,151 @@ function getAroundMap(map, x, y) {
     return { tile, bottom, right, bottomRight };
 }
 
-function projectMouseLocationToTarget() {
-    let x= targetLocation.x
-    let y= targetLocation.y
-    
-    let mapWidth=game.map.width, mapHeight = game.map.height;
+/**
+ * updates the target location
+ */
+function updateTargetLocation() {
+    let targetInfo = getTargetInfo(mouseLocation.x,mouseLocation.y);
+    targetLocation = { x: targetInfo.x, y: targetInfo.y };
+}
 
-    let cellWidth = 1600*0.9/mapWidth, cellHeight = 900*0.9/mapHeight
+/**
+ * projects the target to its actual location and calculates its direction
+ * @param {number} x coordinate x in CanvasPixel form
+ * @param {number} y coordinate y in CanvasPixel form
+ * @returns {TargetInfo} x, y, seta
+ */
+function getTargetInfo(x,y){
+    // if target is out of range, scale it down
+    let [scaledX,scaledY,seta] = scaleDownToRange(x,y)
+
+	//if x,y are out of map, project them on the map edge
+	let [projectedX,projectedY] = projectIntoMapIfOutside( scaledX,scaledY)
+
+    return {x: projectedX, y: projectedY, seta: seta};
+}
+
+/**
+ * if the target is out of range, scale it down
+ * @param {number} x coordinate x in CanvasPixel form
+ * @param {number} y coordinate y in CanvasPixel form
+ * @returns {Array<number>} [{x} the x coordinate, {y} the y coordinate, {seta} the angle]
+ */
+function scaleDownToRange(x,y){
+
+    let cellWidth = 1600*0.9/game.map.width, cellHeight = 900*0.9/game.map.height
+    let cellInPixels = (cellWidth + cellHeight)/2
     
-    let px= (myLocation.x- 1600*0.1)/cellWidth
-    let py= (myLocation.y- 900*0.1)/cellHeight
+    let px= myLocation.x
+    let py= myLocation.y
 
     //calculate the range
 	let buildTime = (Date.now() - startBuildingAt)/1000
 
-	let range = (rang_constA * buildTime) + rang_constB
+	let range = ((rang_constA * cellInPixels) * buildTime) + (rang_constB *cellInPixels)
+    let maxRange =max_cell_range * cellInPixels
 
-	if (range > max_cell_range ) {
-		range = max_cell_range 
+	if (range > maxRange ) {
+		range = maxRange 
 	}
     
+    //calculate the shooting direction
+    let seta = Math.atan2((py - y), (px - x))
+
 	//validate the x,y are within range
 	let distance = Math.sqrt(((px - x) * (px - x)) + ((py - y) * (py - y)))
+    
 	if (distance > range){
 		//if not project the x,y on the max inRange coordinates in the same direction
-		let seta = Math.atan2((py + 0.5 - y), (px + 0.5 - x))
 		y = py - (range * Math.sin(seta)) 
 		x = px - (range * Math.cos(seta))
 	}
 
-    targetLocation = { x: x, y: y }
-
-	//if x,y are out of map, project them on the map edge
-	projectIntoMapIfOutside( mapWidth, mapHeight)
-
-    targetLocation = { x: (targetLocation.x * cellWidth) + (1600 * 0.1), y: (targetLocation.y * cellHeight) + (900 * 0.1) }
+    return [x, y, seta];
 }
 
-function projectIntoMapIfOutside( mapWidth, mapHeight) {
+/**
+ * if the target is out of map boundaries, project it on the map edge
+ * @param {number} x coordinate x in CanvasPixel form
+ * @param {number} y coordinate y in CanvasPixel form
+ * @returns {Array<number>} [{x} the x coordinate, {y} the y coordinate]
+ */
+function projectIntoMapIfOutside(x,y) {
 	// the nonBorderCoordinate= samePlayerCoordinate + ( (sameTargetCoordinate - samePlayerCoordinate) * ( playersVerticalProjectionToBorder / playersProjectionToTargetLevelVerticalOnBorder ) );
 	// the BorderCoordinate= borderCoordinate;
 
-    let x= targetLocation.x
-    let y= targetLocation.y
+    let mapLeft= 1600*0.1, mapRight= 1600, mapTop= 900*0.1, mapBottom= 900
 
-	if (x < 0) {
+	if (x < mapLeft) {
 		//if x<0, project the x,y on the x=0 line
-		x = 0 
-		y = myLocation.y + ((y - (myLocation.y )) * ((0 - (myLocation.x )) / (x - (myLocation.x ))))
-		if (y > 0 && y < mapHeight) {
-			targetLocation = { x: x, y: y }
-            return;
+		x = mapLeft+1 
+		y = myLocation.y + ((y - (myLocation.y )) * ((mapLeft - (myLocation.x )) / (x - (myLocation.x ))))
+		if (y > mapTop && y < mapBottom) {
+			return [x,y];
 		}
-	} else if (x > mapWidth) {
+	} else if (x > mapRight) {
 		//if x>mapWidth, project the x,y on the x=mapWidth line
-		x = mapWidth 
-		y = myLocation.y + ((y - (myLocation.y)) * ((mapWidth - (myLocation.x )) / (x - (myLocation.x))))
-		if (y > 0 && y < mapHeight) {
-			targetLocation = { x: x, y: y }
-            return;
+		x = mapRight-1 
+		y = myLocation.y + ((y - (myLocation.y)) * ((mapRight - (myLocation.x )) / (x - (myLocation.x))))
+		if (y > mapTop && y < mapBottom) {
+			return [x,y];
 		}
 	}
 
-	if (y < 0) {
+	if (y < mapTop) {
 		//if y<0, project the x,y on the y=0 line
-		x = myLocation.x + 0.5 + ((x - (myLocation.x + 0.5)) * ((0 - (myLocation.y + 0.5)) / (y - (myLocation.y + 0.5))))
-		y = 0 + 0.5
+		x = myLocation.x  + ((x - (myLocation.x )) * ((mapTop - (myLocation.y)) / (y - (myLocation.y))))
+		y = mapTop + 1
 
-		targetLocation = { x: x, y: y }
-        return;
-	} else if (y > mapHeight) {
+		return [x,y];
+	} else if (y > mapBottom) {
 		//if y>mapHeight, project the x,y on the y=mapHeight line
-		x = myLocation.x + 0.5 + ((x - (myLocation.x + 0.5)) * ((mapHeight - (myLocation.y + 0.5)) / (y - (myLocation.y + 0.5))))
-		y = mapHeight - 0.5
+		x = myLocation.x + ((x - (myLocation.x)) * ((mapBottom - (myLocation.y)) / (y - (myLocation.y))))
+		y = mapBottom - 1
 
-		targetLocation = { x: x, y: y }
-        return;
+		return [x,y];
 	}
+
+    return [x,y];
+}
+
+/**
+ * pars the coordinates from (relative to canvas | in pixel units) to the (relative to map | in cell units)
+ * @param {number} x 
+ * @param {number} y 
+ */ 
+function canvasPixelToMapCell(x, y) {
+    let xOffset = 1600 * 0.1
+    let yOffset = 900 * 0.1
+
+    let mapWidth = 1600 * 0.9
+    let mapHeight = 900 * 0.9
+
+    let mcX = (x - xOffset) / (mapWidth / game.map.width)
+    let mcY = (y - yOffset) / (mapHeight / game.map.height)
+
+    return { x: mcX, y: mcY }
+}
+
+
+/**
+ * pars the coordinates from (relative to map | in cell units) to the (relative to canvas | in pixel units)
+ * @param {number} x 
+ * @param {number} y 
+ */ 
+function mapCellToCanvasPixel(x, y) {
+    let xOffset = 1600 * 0.1
+    let yOffset = 900 * 0.1
+
+    let mapWidth = 1600 * 0.9
+    let mapHeight = 900 * 0.9
+
+    let cpX = (x * (mapWidth / game.map.width)) + xOffset
+    let cpY = (y * (mapHeight / game.map.height)) + yOffset
+
+    return [cpX, cpY]
+}
+
+function getPlayerIndex(id) { 
+    return game.state.players.findIndex(player => player.user.id == id);
 }
