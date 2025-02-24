@@ -25,16 +25,15 @@ MESSAGES[MESSAGES["MSG_ERROR"] = 20] = "MSG_ERROR";
 MESSAGES[MESSAGES["MSG_WEAPONDOWN"] = 21] = "MSG_WEAPONDOWN";
 MESSAGES[MESSAGES["MSG_WEAPONUPDATE"] = 22] = "MSG_WEAPONUPDATE";
 MESSAGES[MESSAGES["MSG_WEAPONUP"] = 23] = "MSG_WEAPONUP";
-MESSAGES[MESSAGES["MSG_LEN"] = 24] = "MSG_LEN";
+MESSAGES[MESSAGES["MSG_WEAPONPRESSED"] = 24] = "MSG_WEAPONPRESSED";
+MESSAGES[MESSAGES["MSG_WEAPONUPDATED"] = 25] = "MSG_WEAPONUPDATED";
+MESSAGES[MESSAGES["MSG_WEAPONRELEASED"] = 26] = "MSG_WEAPONRELEASED";
+MESSAGES[MESSAGES["MSG_LEN"] = 27] = "MSG_LEN";
 
 
 // system messages
 const SYSTEM_MESSAGES = {};
 SYSTEM_MESSAGES[SYSTEM_MESSAGES["SYS_MSG_INFO"] = 0] = "SYS_MSG_INFO";
-
-// Weapons
-const WEAPONS = {};
-WEAPONS[WEAPONS["WEAPON_Grenade"] = 0] = "WEAPON_Grenade";
 
 // helpers
 function getUint8(data, state) {
@@ -139,6 +138,11 @@ function decodeMsg(msg) {
             const playersLen = getUint8(view, state);
             data.players = [];
             for (let i = 0; i < playersLen; i++) {
+                var weapon=undefined;
+                try{
+                    weapon = game.state.players[i].weapon;
+                }catch(err){}
+                
                 data.players.push({
                     user: {
                         id: getInt16(view, state),
@@ -148,7 +152,11 @@ function decodeMsg(msg) {
                     y: getFloat64(view, state),
                     vx: getInt32(view, state),
                     vy: getInt32(view, state),
+                    weapon: weapon?? Weapon.getWeaponObject(getUint8(view, state),i)
                 });
+                //if the wepon is not null read the weponId byte to skip it
+                if(weapon)getUint8(view, state);
+
                 const usernameLen = getUint8(view, state);
                 data.players[i].user.username = getString(view, usernameLen, state);
             }
@@ -167,6 +175,15 @@ function decodeMsg(msg) {
         case "MSG_ERROR":
             const size = getUint8(view, state);
             data.message = getString(view, size, state);
+            break;
+        case "MSG_WEAPONPRESSED":
+            data.data=Weapon.decodeWeaponPressedMSG(msg);
+            break;
+        case "MSG_WEAPONUPDATED":
+            data.data=Weapon.decodeWeaponUpdatedMSG(msg);
+            break;
+        case "MSG_WEAPONRELEASED":
+            data.data=Weapon.decodeWeaponReleasedMSG(msg);
             break;
 
         case "MSG_HOST":
@@ -262,12 +279,24 @@ function encodeMsg(msg) {
             buf.set(msgBuf, 2);
             break;
         case "MSG_WEAPONDOWN":
-            buf = new Uint8Array(1);
-            buf[0] = type;
+            buffer = new DataView(new ArrayBuffer(10));
+            // Combine type, weapon_id, and seta byte arrays
+            buffer.setUint8(0,type);
+            buffer.setUint8(1,WEAPONS["WEAPON_Grenade"]);
+            buffer.setFloat64(2,msg.data.seta, true);
+            
+            // Concatenate the byte arrays
+            buf = new Uint8Array(buffer.buffer);
             break;
         case "MSG_WEAPONUPDATE":
-            buf = new Uint8Array(1);
-            buf[0] = type;
+            buffer = new DataView(new ArrayBuffer(10));
+            // Combine type, weapon_id, and seta byte arrays
+            buffer.setUint8(0,type);
+            buffer.setUint8(1,WEAPONS["WEAPON_Grenade"]);
+            buffer.setFloat64(2,msg.data.seta, true);
+            
+            // Concatenate the byte arrays
+            buf = new Uint8Array(buffer.buffer);
             break;
         case "MSG_WEAPONUP":
             buffer = new DataView(new ArrayBuffer(18));
